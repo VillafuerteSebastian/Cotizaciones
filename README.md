@@ -65,10 +65,10 @@ src/
 4. En **SQL Editor** ejecuta, reemplazando los UUID:
    ```sql
    insert into public.profiles (id, nombre, role) values
-   ('e942f835-91c5-4fc2-86e0-31c1ab472224', 'Cyber', 'cotizador');
+   ('UUID-DE-CYBER', 'Cyber', 'cotizador');
 
    insert into public.profiles (id, nombre, role) values
-   ('4dbcc8cd-af05-4b56-8a19-e96e4214d04d', 'Ocampo', 'solicitante');
+   ('UUID-DE-OCAMPO', 'Ocampo', 'solicitante');
    ```
 5. Copia el **Project URL** y la **anon public key** desde **Settings → API**.
 6. (Opcional) Agrega personas a cada equipo desde la pestaña "Equipo" de
@@ -113,6 +113,24 @@ Si no configuras las variables de entorno, la app muestra una pantalla de
 configuración manual la primera vez (útil para pruebas rápidas), pero para
 producción lo correcto es usar las variables de entorno de Vercel.
 
+## Cómo quedó el flujo de una cotización
+1. **Ocampo** crea la cotización: título, escuela/cliente, y escribe la
+   lista de productos que necesita cotizar directo en el cuadro de texto
+   (uno por línea) — ya no hace falta agregarlos uno por uno. El
+   "solicitante" se toma automáticamente de la persona seleccionada en
+   "¿Quién eres?", sin tener que elegirla de nuevo.
+2. **Cyber** abre esa cotización, lee la lista de productos pedidos, y
+   por cada uno agrega un "producto cotizado" con: proveedor, precio
+   final, cantidad disponible, una descripción breve opcional y, si
+   quiere, una foto/captura (se comprime automáticamente en el
+   navegador antes de guardarse).
+3. **Ocampo** ve esos productos cotizados (con foto, precio, proveedor)
+   dentro de la misma cotización, y puede seguir el avance por el
+   tablero de estados.
+
+Ocampo también puede, si prefiere, seguir agregando productos sueltos
+uno por uno con cantidad (como antes) — es opcional, no obligatorio.
+
 ## Mejoras de seguridad y control incluidas
 - **Nadie puede subirse el rol a sí mismo.** Antes, cualquiera con las
   credenciales podía, con una llamada directa a la API, cambiar su propio
@@ -133,10 +151,12 @@ producción lo correcto es usar las variables de entorno de Vercel.
 
 ## Reglas de permisos (aplicadas también en la base de datos, no solo en la UI)
 - Solo Cyber puede ver y administrar Proveedores.
-- Solo Cyber puede ver "Faltantes en tienda".
-- Ocampo puede editar `producto` y `cantidad` de un item; no puede tocar
-  proveedor, precio, notas ni "cotizado por".
-- Cyber puede editar todo el item excepto `cantidad`.
+- Solo Cyber puede ver "Faltantes en tienda" y la bitácora de "Actividad".
+- Ocampo puede editar `producto` y `cantidad` de un item que él mismo
+  agregó; no puede tocar proveedor, precio, cantidad disponible,
+  descripción, imagen, notas ni "cotizado por".
+- Cyber puede crear y editar libremente los productos cotizados
+  (proveedor, precio, cantidad, descripción, imagen, notas).
 - Solo Cyber puede cambiar el estado del encargo (cotización → pedido → …).
 
 Estas reglas están reforzadas con políticas RLS y triggers en

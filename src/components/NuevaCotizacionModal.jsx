@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
 
-export default function NuevaCotizacionModal({ profile, activeWorker, trabajadoresOcampo, escuelasSugeridas, onClose, onCreated }) {
+export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSugeridas, onClose, onCreated }) {
   const [titulo, setTitulo] = useState('');
   const [escuela, setEscuela] = useState('');
-  const [trabajadorId, setTrabajadorId] = useState(activeWorker ? activeWorker.id : '');
-  const [notas, setNotas] = useState('');
+  const [productos, setProductos] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -16,20 +15,19 @@ export default function NuevaCotizacionModal({ profile, activeWorker, trabajador
       setErr('Indica a nombre de qué escuela / cliente es la cotización.');
       return;
     }
-    if (!trabajadorId) {
-      setErr('Indica quién de Ocampo está solicitando esta cotización.');
+    if (!activeWorker) {
+      setErr('No se detectó quién eres. Cierra este cuadro y vuelve a seleccionarte desde el menú.');
       return;
     }
     setBusy(true);
     try {
-      const trabajador = trabajadoresOcampo.find((t) => t.id === trabajadorId);
       const created = await api.post('cotizaciones', {
         titulo: titulo.trim(),
         escuela: escuela.trim(),
-        solicitante_trabajador_id: trabajadorId,
-        solicitante_nombre: trabajador ? trabajador.nombre : '',
+        solicitante_trabajador_id: activeWorker.id,
+        solicitante_nombre: activeWorker.nombre,
         creado_por: profile.id,
-        notas_generales: notas.trim() || null,
+        notas_generales: productos.trim() || null,
       });
       onCreated(created[0].id, `${escuela.trim()} — ${titulo.trim()}`);
     } catch (ex) {
@@ -53,6 +51,9 @@ export default function NuevaCotizacionModal({ profile, activeWorker, trabajador
             ✕
           </button>
         </div>
+        <p className="hint" style={{ marginBottom: 14 }}>
+          Solicita: <strong>{activeWorker ? activeWorker.nombre : '—'}</strong>
+        </p>
         {err && <div className="err">{err}</div>}
         <form onSubmit={submit}>
           <div className="field">
@@ -75,22 +76,14 @@ export default function NuevaCotizacionModal({ profile, activeWorker, trabajador
             </datalist>
           </div>
           <div className="field">
-            <label>¿Quién solicita? (Ocampo)</label>
-            <select required value={trabajadorId} onChange={(e) => setTrabajadorId(e.target.value)}>
-              <option value="">— Selecciona —</option>
-              {trabajadoresOcampo.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre}
-                </option>
-              ))}
-            </select>
-            {trabajadoresOcampo.length === 0 && (
-              <p className="hint">Aún no hay nadie en la lista de Ocampo. Agrégalo en la pestaña "Equipo".</p>
-            )}
-          </div>
-          <div className="field">
-            <label>Notas generales (opcional)</label>
-            <textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+            <label>Productos a cotizar</label>
+            <textarea
+              value={productos}
+              onChange={(e) => setProductos(e.target.value)}
+              placeholder={'Escribe aquí la lista, uno por línea. Ej:\n5 pizarras acrílicas\n10 marcadores de agua\n1 engrapadora industrial'}
+              style={{ minHeight: 110 }}
+            />
+            <p className="hint">Cyber los verá aquí y agregará cada uno con precio, proveedor y demás datos.</p>
           </div>
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? 'Creando…' : 'Crear cotización'}

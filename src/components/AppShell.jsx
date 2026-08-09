@@ -156,7 +156,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
             <div className="main-header">
               <h2>Actividad</h2>
             </div>
-            <ActividadScreen actividad={actividad} />
+            <ActividadScreen profile={profile} activeWorker={activeWorker} actividad={actividad} reload={loadActividad} log={log} />
           </React.Fragment>
         )}
       </div>
@@ -178,7 +178,6 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
         <NuevaCotizacionModal
           profile={profile}
           activeWorker={activeWorker}
-          trabajadoresOcampo={trabajadoresOcampo}
           escuelasSugeridas={escuelasSugeridas}
           onClose={() => setShowNueva(false)}
           onCreated={async (id, detalle) => {

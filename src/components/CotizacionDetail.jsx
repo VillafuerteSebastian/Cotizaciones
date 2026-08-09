@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../supabaseClient.js';
+import { resizeImageToDataUrl } from '../imageUtils.js';
 import { ESTADOS, fmtMoney, fmtDateTime, itemsTotal } from '../utils.js';
 import { StatusStepper, Badge } from './StatusStepper.jsx';
 
-function NotasGenerales({ value, onSave }) {
+function NotasGenerales({ value, onSave, isSolicitante }) {
   const [v, setV] = useState(value);
   const [saved, setSaved] = useState(true);
   useEffect(() => setV(value), [value]);
@@ -15,7 +16,8 @@ function NotasGenerales({ value, onSave }) {
           setV(e.target.value);
           setSaved(false);
         }}
-        placeholder="Contexto general del encargo…"
+        style={{ minHeight: 90 }}
+        placeholder={isSolicitante ? 'Lista de productos a cotizar, uno por línea…' : 'Sin productos anotados.'}
       />
       {!saved && (
         <button
@@ -26,9 +28,44 @@ function NotasGenerales({ value, onSave }) {
             setSaved(true);
           }}
         >
-          Guardar notas
+          Guardar
         </button>
       )}
+    </div>
+  );
+}
+
+function ImagenInput({ value, onChange }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="field" style={{ marginBottom: 0 }}>
+      <label>Foto (opcional)</label>
+      {value && (
+        <div style={{ marginBottom: 6 }}>
+          <img src={value} alt="captura" style={{ maxWidth: 90, maxHeight: 90, borderRadius: 8, border: '1px solid var(--line)' }} />
+          <button type="button" className="link-btn" style={{ display: 'block', marginTop: 4 }} onClick={() => onChange(null)}>
+            Quitar
+          </button>
+        </div>
+      )}
+      <input
+        type="file"
+        accept="image/*"
+        disabled={busy}
+        onChange={async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          setBusy(true);
+          try {
+            const dataUrl = await resizeImageToDataUrl(file);
+            onChange(dataUrl);
+          } catch (ex) {
+            alert(ex.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -39,7 +76,7 @@ function ItemRowEditSolicitante({ it, onSave, onCancel }) {
   const [cantidad, setCantidad] = useState(it.cantidad);
   return (
     <tr>
-      <td colSpan={7}>
+      <td colSpan={8}>
         <div className="row" style={{ alignItems: 'flex-end' }}>
           <div className="field" style={{ flex: 2, marginBottom: 0 }}>
             <label>Producto</label>
@@ -61,93 +98,134 @@ function ItemRowEditSolicitante({ it, onSave, onCancel }) {
   );
 }
 
-// Fila de producto en modo edición para Cyber (todo excepto cantidad)
-function ItemRowEditCotizador({ it, proveedores, trabajadoresCyber, activeWorker, reloadProveedores, onSave, onCancel }) {
-  const [proveedorId, setProveedorId] = useState(it.proveedor_id || '');
-  const [precio, setPrecio] = useState(it.precio_final ?? '');
-  const [notas, setNotas] = useState(it.notas || '');
-  const [cotizadoPor, setCotizadoPor] = useState(it.cotizado_por_trabajador_id || (activeWorker ? activeWorker.id : ''));
+// Formulario de Cyber: crear o editar un producto cotizado (todos los datos).
+function ItemFormCotizador({ initial, proveedores, trabajadoresCyber, activeWorker, reloadProveedores, onSave, onCancel, submitLabel }) {
+  const [producto, setProducto] = useState(initial?.producto || '');
+  const [descripcion, setDescripcion] = useState(initial?.descripcion || '');
+  const [proveedorId, setProveedorId] = useState(initial?.proveedor_id || '');
+  const [precio, setPrecio] = useState(initial?.precio_final ?? '');
+  const [cantidad, setCantidad] = useState(initial?.cantidad ?? 1);
+  const [notas, setNotas] = useState(initial?.notas || '');
+  const [imagen, setImagen] = useState(initial?.imagen || null);
+  const [cotizadoPor, setCotizadoPor] = useState(initial?.cotizado_por_trabajador_id || (activeWorker ? activeWorker.id : ''));
   const [nuevoProv, setNuevoProv] = useState(false);
   const [nuevoProvNombre, setNuevoProvNombre] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
 
-  const save = async () => {
-    let pid = proveedorId || null;
-    if (nuevoProv && nuevoProvNombre.trim()) {
-      const created = await api.post('proveedores', { nombre: nuevoProvNombre.trim() });
-      pid = created[0].id;
-      await reloadProveedores();
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr('');
+    if (!producto.trim()) {
+      setErr('Escribe el nombre del producto.');
+      return;
     }
-    onSave({
-      proveedor_id: pid,
-      precio_final: precio === '' ? null : Number(precio),
-      notas: notas.trim() || null,
-      cotizado_por_trabajador_id: cotizadoPor || null,
-    });
+    setBusy(true);
+    try {
+      let pid = proveedorId || null;
+      if (nuevoProv && nuevoProvNombre.trim()) {
+        const created = await api.post('proveedores', { nombre: nuevoProvNombre.trim() });
+        pid = created[0].id;
+        await reloadProveedores();
+      }
+      await onSave({
+        producto: producto.trim(),
+        descripcion: descripcion.trim() || null,
+        proveedor_id: pid,
+        precio_final: precio === '' ? null : Number(precio),
+        cantidad: Number(cantidad) || 1,
+        notas: notas.trim() || null,
+        imagen: imagen || null,
+        cotizado_por_trabajador_id: cotizadoPor || null,
+      });
+    } catch (ex) {
+      setErr(ex.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <tr>
-      <td colSpan={7}>
-        <div className="row">
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Proveedor</label>
-            {!nuevoProv ? (
-              <select
-                value={proveedorId}
-                onChange={(e) => {
-                  if (e.target.value === '__nuevo__') {
-                    setNuevoProv(true);
-                    setProveedorId('');
-                  } else setProveedorId(e.target.value);
-                }}
-              >
-                <option value="">Sin proveedor</option>
-                {proveedores.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                  </option>
-                ))}
-                <option value="__nuevo__">+ Nuevo proveedor…</option>
-              </select>
-            ) : (
-              <div className="row">
-                <input autoFocus placeholder="Nombre proveedor" value={nuevoProvNombre} onChange={(e) => setNuevoProvNombre(e.target.value)} />
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNuevoProv(false)}>
-                  x
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Precio final</label>
-            <input type="number" min="0" step="any" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="₡" />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Cotizado por</label>
-            <select value={cotizadoPor} onChange={(e) => setCotizadoPor(e.target.value)}>
-              <option value="">— Selecciona —</option>
-              {trabajadoresCyber.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre}
+    <form onSubmit={submit} style={{ background: '#F7F8FA', borderRadius: 10, padding: 14, marginBottom: 10 }}>
+      {err && <div className="err">{err}</div>}
+      <div className="row">
+        <div className="field" style={{ flex: 2 }}>
+          <label>Producto</label>
+          <input required value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Pizarra acrílica 60x90" />
+        </div>
+        <div className="field">
+          <label>Cantidad disponible</label>
+          <input type="number" min="0" step="any" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+        </div>
+      </div>
+      <div className="field">
+        <label>Descripción breve (opcional)</label>
+        <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Marca, medida, color, etc." />
+      </div>
+      <div className="row">
+        <div className="field">
+          <label>Proveedor</label>
+          {!nuevoProv ? (
+            <select
+              value={proveedorId}
+              onChange={(e) => {
+                if (e.target.value === '__nuevo__') {
+                  setNuevoProv(true);
+                  setProveedorId('');
+                } else setProveedorId(e.target.value);
+              }}
+            >
+              <option value="">Sin proveedor</option>
+              {proveedores.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
                 </option>
               ))}
+              <option value="__nuevo__">+ Nuevo proveedor…</option>
             </select>
-          </div>
+          ) : (
+            <div className="row">
+              <input autoFocus placeholder="Nombre proveedor" value={nuevoProvNombre} onChange={(e) => setNuevoProvNombre(e.target.value)} />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNuevoProv(false)}>
+                x
+              </button>
+            </div>
+          )}
         </div>
-        <div className="row" style={{ marginTop: 8, alignItems: 'flex-end' }}>
-          <div className="field" style={{ flex: 2, marginBottom: 0 }}>
-            <label>Notas de proceso</label>
-            <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ej: lo cotiza el jefe, no hay proveedor a la mano" />
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={save}>
-            Guardar
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+        <div className="field">
+          <label>Precio final</label>
+          <input type="number" min="0" step="any" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="₡" />
+        </div>
+      </div>
+      <div className="row">
+        <div className="field">
+          <label>Cotizado por</label>
+          <select value={cotizadoPor} onChange={(e) => setCotizadoPor(e.target.value)}>
+            <option value="">— Selecciona —</option>
+            {trabajadoresCyber.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+        <ImagenInput value={imagen} onChange={setImagen} />
+      </div>
+      <div className="field">
+        <label>Notas de proceso (opcional)</label>
+        <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ej: precio válido por 8 días" />
+      </div>
+      <div className="row" style={{ marginTop: 4 }}>
+        <button className="btn btn-primary btn-sm" disabled={busy}>
+          {busy ? 'Guardando…' : submitLabel}
+        </button>
+        {onCancel && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
             Cancelar
           </button>
-        </div>
-      </td>
-    </tr>
+        )}
+      </div>
+    </form>
   );
 }
 
@@ -166,6 +244,7 @@ export default function CotizacionDetail({
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [showAddCotizador, setShowAddCotizador] = useState(false);
   const isCotizador = profile.role === 'cotizador';
   const isSolicitante = profile.role === 'solicitante';
 
@@ -183,7 +262,7 @@ export default function CotizacionDetail({
     load();
   }, [load]);
 
-  const addItem = async (e) => {
+  const addItemSolicitante = async (e) => {
     e.preventDefault();
     setErr('');
     setBusy(true);
@@ -204,6 +283,18 @@ export default function CotizacionDetail({
     } finally {
       setBusy(false);
     }
+  };
+
+  const addItemCotizador = async (patch) => {
+    await api.post('cotizacion_items', {
+      cotizacion_id: id,
+      agregado_por: profile.id,
+      ...patch,
+    });
+    setShowAddCotizador(false);
+    await load();
+    onChanged();
+    await log('Agregó producto cotizado', `${patch.producto} en #${c.folio}`);
   };
 
   const saveItem = async (itemId, patch, itemLabel) => {
@@ -283,7 +374,11 @@ export default function CotizacionDetail({
         )}
 
         <div className="divider" />
-        <div className="section-label">Productos ({(c.cotizacion_items || []).length})</div>
+        <div className="section-label">{isSolicitante ? 'Productos a cotizar (tu lista)' : 'Productos que pidió Ocampo'}</div>
+        <NotasGenerales value={c.notas_generales || ''} onSave={saveNotas} isSolicitante={isSolicitante} />
+
+        <div className="divider" />
+        <div className="section-label">Productos cotizados ({(c.cotizacion_items || []).length})</div>
         {err && <div className="err">{err}</div>}
         <table>
           <thead>
@@ -308,20 +403,34 @@ export default function CotizacionDetail({
                     onCancel={() => setEditingId(null)}
                   />
                 ) : (
-                  <ItemRowEditCotizador
-                    key={it.id}
-                    it={it}
-                    proveedores={proveedores}
-                    trabajadoresCyber={trabajadoresCyber}
-                    activeWorker={activeWorker}
-                    reloadProveedores={reloadProveedores}
-                    onSave={(patch) => saveItem(it.id, patch, it.producto)}
-                    onCancel={() => setEditingId(null)}
-                  />
+                  <tr key={it.id}>
+                    <td colSpan={7}>
+                      <ItemFormCotizador
+                        initial={it}
+                        proveedores={proveedores}
+                        trabajadoresCyber={trabajadoresCyber}
+                        activeWorker={activeWorker}
+                        reloadProveedores={reloadProveedores}
+                        submitLabel="Guardar cambios"
+                        onCancel={() => setEditingId(null)}
+                        onSave={(patch) => saveItem(it.id, patch, it.producto)}
+                      />
+                    </td>
+                  </tr>
                 )
               ) : (
                 <tr key={it.id}>
-                  <td>{it.producto}</td>
+                  <td>
+                    {it.imagen && (
+                      <img
+                        src={it.imagen}
+                        alt={it.producto}
+                        style={{ maxWidth: 46, maxHeight: 46, borderRadius: 6, display: 'block', marginBottom: 4 }}
+                      />
+                    )}
+                    {it.producto}
+                    {it.descripcion && <div className="item-notas">{it.descripcion}</div>}
+                  </td>
                   <td>{it.proveedor ? it.proveedor.nombre : '—'}</td>
                   <td>{it.cantidad}</td>
                   <td>{it.precio_final !== null ? fmtMoney(it.precio_final) : 'Pendiente'}</td>
@@ -351,31 +460,52 @@ export default function CotizacionDetail({
           <span>{fmtMoney(total)}</span>
         </div>
 
+        {isCotizador && (
+          <React.Fragment>
+            <div className="divider" />
+            <div className="section-label">Agregar producto cotizado</div>
+            {!showAddCotizador ? (
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAddCotizador(true)}>
+                + Agregar producto
+              </button>
+            ) : (
+              <ItemFormCotizador
+                proveedores={proveedores}
+                trabajadoresCyber={trabajadoresCyber}
+                activeWorker={activeWorker}
+                reloadProveedores={reloadProveedores}
+                submitLabel="Agregar producto"
+                onCancel={() => setShowAddCotizador(false)}
+                onSave={addItemCotizador}
+              />
+            )}
+          </React.Fragment>
+        )}
+
         {isSolicitante && (
           <React.Fragment>
             <div className="divider" />
-            <div className="section-label">Agregar producto a cotizar</div>
-            <form onSubmit={addItem}>
+            <div className="section-label">Agregar producto suelto (opcional)</div>
+            <p className="hint" style={{ marginTop: -6, marginBottom: 10 }}>
+              Si prefieres, puedes también usar la lista de "Productos a cotizar" de arriba en vez de esto.
+            </p>
+            <form onSubmit={addItemSolicitante}>
               <div className="row">
                 <div className="field" style={{ flex: 2 }}>
                   <label>Producto</label>
-                  <input required value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Fajas de acero 2 pulg." />
+                  <input value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Fajas de acero 2 pulg." />
                 </div>
                 <div className="field">
                   <label>Cantidad</label>
                   <input type="number" min="0" step="any" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
                 </div>
               </div>
-              <button className="btn btn-primary" disabled={busy}>
+              <button className="btn btn-primary" disabled={busy || !producto.trim()}>
                 {busy ? 'Agregando…' : 'Agregar producto'}
               </button>
             </form>
           </React.Fragment>
         )}
-
-        <div className="divider" />
-        <div className="section-label">Notas generales</div>
-        <NotasGenerales value={c.notas_generales || ''} onSave={saveNotas} />
       </div>
     </div>
   );

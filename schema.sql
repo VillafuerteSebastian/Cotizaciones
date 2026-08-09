@@ -78,10 +78,14 @@ create table if not exists public.cotizacion_items (
   precio_final numeric,
   notas text,
   cotizado_por_trabajador_id uuid references public.trabajadores_cyber(id),
+  descripcion text,
+  imagen text,
   agregado_por uuid references public.profiles(id),
   created_at timestamptz not null default now()
 );
 alter table public.cotizacion_items add column if not exists cotizado_por_trabajador_id uuid references public.trabajadores_cyber(id);
+alter table public.cotizacion_items add column if not exists descripcion text;
+alter table public.cotizacion_items add column if not exists imagen text;
 
 -- ---------- Lista de productos faltantes en tienda (solo Cyber) ----------
 create table if not exists public.productos_faltantes (
@@ -126,7 +130,8 @@ $$ language sql security definer stable;
 
 -- ---------- Reglas de negocio por rol, a nivel de columna ----------
 -- Ocampo (solicitante) SOLO puede tocar producto y cantidad de un item.
--- Cyber (cotizador) puede tocar todo EXCEPTO cantidad.
+-- Cyber (cotizador) gestiona todo lo demás: proveedor, precio, cantidad
+-- disponible, descripción, imagen, notas y quién cotizó.
 create or replace function public.check_item_update()
 returns trigger as $$
 declare
@@ -137,12 +142,10 @@ begin
     if new.proveedor_id is distinct from old.proveedor_id
        or new.precio_final is distinct from old.precio_final
        or new.notas is distinct from old.notas
+       or new.descripcion is distinct from old.descripcion
+       or new.imagen is distinct from old.imagen
        or new.cotizado_por_trabajador_id is distinct from old.cotizado_por_trabajador_id then
-      raise exception 'Ocampo no puede editar proveedor, precio, notas o quién cotizó';
-    end if;
-  elsif urole = 'cotizador' then
-    if new.cantidad is distinct from old.cantidad then
-      raise exception 'Cyber no puede editar la cantidad';
+      raise exception 'Ocampo no puede editar proveedor, precio, notas, descripción, imagen o quién cotizó';
     end if;
   end if;
   return new;
@@ -268,10 +271,10 @@ create policy "actividad_select" on public.actividad
 -- 2. Copia el UUID de cada uno y ejecuta:
 --
 --    insert into public.profiles (id, nombre, role) values
---    ('0a116699-4547-4796-bcc5-3dc52d2352ff', 'Cyber', 'cotizador');
+--    ('UUID-DE-CYBER', 'Cyber', 'cotizador');
 --
 --    insert into public.profiles (id, nombre, role) values
---    ('4b8d5aed-69e3-41e1-bd21-c02f1cdebfa3', 'Ocampo', 'solicitante');
+--    ('UUID-DE-OCAMPO', 'Ocampo', 'solicitante');
 --
 -- 3. (Opcional) Agrega algunos trabajadores de cada lado, esto también
 --    se puede hacer luego desde la app en la pestaña "Equipo":
