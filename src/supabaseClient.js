@@ -4,6 +4,16 @@
 const ENV_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const ENV_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
+// Supabase Auth siempre necesita un "email" internamente. Como aquí el
+// login es por usuario (no correo real), convertimos el usuario a una
+// dirección falsa dentro de un dominio interno que nunca recibe correos.
+const AUTH_DOMAIN = import.meta.env.VITE_AUTH_EMAIL_DOMAIN || 'internal.local';
+
+export function usernameToEmail(username) {
+  const clean = username.trim().toLowerCase().replace(/\s+/g, '');
+  return `${clean}@${AUTH_DOMAIN}`;
+}
+
 export const S = {
   url: ENV_URL,
   anonKey: ENV_KEY,
@@ -50,14 +60,15 @@ export function clearSession() {
   localStorage.removeItem('sb_session');
 }
 
-export async function login(email, password) {
+export async function login(username, password) {
+  const email = usernameToEmail(username);
   const res = await fetch(`${S.url}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: { apikey: S.anonKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error_description || data.msg || 'No se pudo iniciar sesión');
+  if (!res.ok) throw new Error(data.error_description || data.msg || 'Usuario o contraseña incorrectos');
   S.accessToken = data.access_token;
   S.refreshToken = data.refresh_token;
   saveSession();
@@ -116,6 +127,35 @@ export const api = {
     rest(path, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(body) }),
   del: (path) => rest(path, { method: 'DELETE' }),
 };
+
+// "Quién eres" — la persona real detrás del login compartido.
+// Se guarda en este navegador, separado por rol.
+export function getActiveWorker(role) {
+  const raw = localStorage.getItem(`active_worker_${role}`);
+  return raw ? JSON.parse(raw) : null;
+}
+export function setActiveWorker(role, worker) {
+  localStorage.setItem(`active_worker_${role}`, JSON.stringify(worker));
+}
+export function clearActiveWorker(role) {
+  localStorage.removeItem(`active_worker_${role}`);
+}
+
+// Bitácora de actividad (control interno, solo la lee Cyber).
+export async function logActividad(profile, activeWorker, accion, detalle) {
+  try {
+    await api.post('actividad', {
+      profile_id: profile.id,
+      profile_role: profile.role,
+      trabajador_nombre: activeWorker ? activeWorker.nombre : null,
+      accion,
+      detalle: detalle || null,
+    });
+  } catch (ex) {
+    // La bitácora nunca debe romper el flujo principal de la app.
+    console.warn('No se pudo registrar actividad:', ex.message);
+  }
+}
 
 export async function fetchProfile(userId) {
   const rows = await api.get(`profiles?id=eq.${userId}&select=*`);

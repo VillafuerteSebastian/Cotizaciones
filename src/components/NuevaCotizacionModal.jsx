@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
 
-export default function NuevaCotizacionModal({ profile, solicitantes, onClose, onCreated }) {
+export default function NuevaCotizacionModal({ profile, activeWorker, trabajadoresOcampo, escuelasSugeridas, onClose, onCreated }) {
   const [titulo, setTitulo] = useState('');
-  const [solicitanteId, setSolicitanteId] = useState(profile.role === 'solicitante' ? profile.id : '');
-  const [solicitanteNombre, setSolicitanteNombre] = useState(profile.role === 'solicitante' ? profile.nombre : '');
+  const [escuela, setEscuela] = useState('');
+  const [trabajadorId, setTrabajadorId] = useState(activeWorker ? activeWorker.id : '');
   const [notas, setNotas] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -12,20 +12,26 @@ export default function NuevaCotizacionModal({ profile, solicitantes, onClose, o
   const submit = async (e) => {
     e.preventDefault();
     setErr('');
+    if (!escuela.trim()) {
+      setErr('Indica a nombre de qué escuela / cliente es la cotización.');
+      return;
+    }
+    if (!trabajadorId) {
+      setErr('Indica quién de Ocampo está solicitando esta cotización.');
+      return;
+    }
     setBusy(true);
     try {
-      const nombre = solicitanteId
-        ? (solicitantes.find((s) => s.id === solicitanteId) || {}).nombre || solicitanteNombre
-        : solicitanteNombre;
-      if (!nombre.trim()) throw new Error('Indica quién solicita la cotización.');
+      const trabajador = trabajadoresOcampo.find((t) => t.id === trabajadorId);
       const created = await api.post('cotizaciones', {
         titulo: titulo.trim(),
-        solicitante_id: solicitanteId || null,
-        solicitante_nombre: nombre.trim(),
+        escuela: escuela.trim(),
+        solicitante_trabajador_id: trabajadorId,
+        solicitante_nombre: trabajador ? trabajador.nombre : '',
         creado_por: profile.id,
         notas_generales: notas.trim() || null,
       });
-      onCreated(created[0].id);
+      onCreated(created[0].id, `${escuela.trim()} — ${titulo.trim()}`);
     } catch (ex) {
       setErr(ex.message);
     } finally {
@@ -51,25 +57,35 @@ export default function NuevaCotizacionModal({ profile, solicitantes, onClose, o
         <form onSubmit={submit}>
           <div className="field">
             <label>Título / descripción del encargo</label>
-            <input required value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej: Repuestos bomba de agua planta 2" />
+            <input required value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej: Material de limpieza para bodega" />
           </div>
           <div className="field">
-            <label>Solicitante</label>
-            <select value={solicitanteId} onChange={(e) => setSolicitanteId(e.target.value)}>
-              <option value="">— Otro (escribir nombre) —</option>
-              {solicitantes.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre}
+            <label>Escuela / cliente</label>
+            <input
+              required
+              list="escuelas-sugeridas"
+              value={escuela}
+              onChange={(e) => setEscuela(e.target.value)}
+              placeholder="Ej: Escuela Juan Santamaría"
+            />
+            <datalist id="escuelas-sugeridas">
+              {escuelasSugeridas.map((e) => (
+                <option key={e} value={e} />
+              ))}
+            </datalist>
+          </div>
+          <div className="field">
+            <label>¿Quién solicita? (Ocampo)</label>
+            <select required value={trabajadorId} onChange={(e) => setTrabajadorId(e.target.value)}>
+              <option value="">— Selecciona —</option>
+              {trabajadoresOcampo.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombre}
                 </option>
               ))}
             </select>
-            {!solicitanteId && (
-              <input
-                style={{ marginTop: 8 }}
-                placeholder="Nombre de quien solicita"
-                value={solicitanteNombre}
-                onChange={(e) => setSolicitanteNombre(e.target.value)}
-              />
+            {trabajadoresOcampo.length === 0 && (
+              <p className="hint">Aún no hay nadie en la lista de Ocampo. Agrégalo en la pestaña "Equipo".</p>
             )}
           </div>
           <div className="field">

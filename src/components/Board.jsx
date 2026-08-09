@@ -6,10 +6,10 @@ function CotizacionCard({ c, onOpen }) {
   const total = itemsTotal(c.cotizacion_items);
   return (
     <div className="card" onClick={() => onOpen(c.id)}>
-      <div className="folio">#{c.folio}</div>
+      <div className="folio">#{c.folio} · {c.escuela}</div>
       <div className="titulo">{c.titulo}</div>
       <div className="meta">
-        <span>{c.solicitante_nombre}</span>
+        <span>Solicita: {c.solicitante_nombre}</span>
         <span>{(c.cotizacion_items || []).length} prod.</span>
       </div>
       <StatusStepper estado={c.estado} />

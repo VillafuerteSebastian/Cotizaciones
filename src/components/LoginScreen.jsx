@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { login, S } from '../supabaseClient.js';
 
 export default function LoginScreen({ onLogin, onReconfigure }) {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -12,7 +12,7 @@ export default function LoginScreen({ onLogin, onReconfigure }) {
     setErr('');
     setBusy(true);
     try {
-      const user = await login(email.trim(), password);
+      const user = await login(username, password);
       await onLogin(user);
     } catch (ex) {
       setErr(ex.message);
@@ -29,8 +29,16 @@ export default function LoginScreen({ onLogin, onReconfigure }) {
         {err && <div className="err">{err}</div>}
         <form onSubmit={submit}>
           <div className="field">
-            <label>Correo</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label>Usuario</label>
+            <input
+              type="text"
+              autoCapitalize="none"
+              autoCorrect="off"
+              placeholder="cyber / ocampo"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
           </div>
           <div className="field">
             <label>Contraseña</label>
