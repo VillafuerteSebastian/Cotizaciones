@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { api } from '../supabaseClient.js';
 import { fmtDateTime } from '../utils.js';
 
@@ -8,9 +8,15 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
   const [busy, setBusy] = useState(false);
   const [verResueltos, setVerResueltos] = useState(false);
 
+  const coincidencia = useMemo(() => {
+    const p = producto.trim().toLowerCase();
+    if (!p) return null;
+    return faltantes.find((f) => f.producto.trim().toLowerCase() === p) || null;
+  }, [producto, faltantes]);
+
   const add = async (e) => {
     e.preventDefault();
-    if (!producto.trim()) return;
+    if (!producto.trim() || coincidencia) return;
     setBusy(true);
     await api.post('productos_faltantes', {
       producto: producto.trim(),
@@ -24,8 +30,23 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
     setBusy(false);
   };
 
+  const marcarFaltaOtraVez = async (f) => {
+    setBusy(true);
+    await api.patch(`productos_faltantes?id=eq.${f.id}`, {
+      resuelto: false,
+      veces_reportado: (f.veces_reportado || 1) + 1,
+      ultima_vez: new Date().toISOString(),
+      notas: notas.trim() ? notas.trim() : f.notas,
+    });
+    await log('Reportó faltante otra vez', f.producto);
+    setProducto('');
+    setNotas('');
+    await reload();
+    setBusy(false);
+  };
+
   const toggleResuelto = async (f) => {
-    await api.patch(`productos_faltantes?id=eq.${f.id}`, { resuelto: !f.resuelto });
+    await api.patch(`productos_faltantes?id=eq.${f.id}`, { resuelto: !f.resuelto, ultima_vez: new Date().toISOString() });
     await log(f.resuelto ? 'Reabrió faltante' : 'Resolvió faltante', f.producto);
     await reload();
   };
@@ -37,7 +58,9 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
     await reload();
   };
 
-  const visibles = faltantes.filter((f) => (verResueltos ? true : !f.resuelto));
+  const visibles = [...faltantes]
+    .filter((f) => (verResueltos ? true : !f.resuelto))
+    .sort((a, b) => new Date(b.ultima_vez || b.created_at) - new Date(a.ultima_vez || a.created_at));
 
   return (
     <div>
@@ -54,9 +77,27 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
             <label>Notas (opcional)</label>
             <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Detalle, marca, cuánto se necesita…" />
           </div>
-          <button className="btn btn-primary" disabled={busy}>
-            {busy ? 'Guardando…' : 'Agregar a la lista'}
-          </button>
+
+          {coincidencia ? (
+            <div className="err" style={{ background: '#FFF6E5', color: '#8A5A00' }}>
+              "{coincidencia.producto}" ya está en la lista
+              {coincidencia.veces_reportado > 1 ? ` (reportado ${coincidencia.veces_reportado} veces)` : ''}
+              {coincidencia.resuelto ? ', y estaba marcado como resuelto.' : ', todavía está pendiente.'}
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ display: 'block', marginTop: 8 }}
+                disabled={busy}
+                onClick={() => marcarFaltaOtraVez(coincidencia)}
+              >
+                {busy ? 'Guardando…' : 'Falta otra vez'}
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn-primary" disabled={busy || !producto.trim()}>
+              {busy ? 'Guardando…' : 'Agregar a la lista'}
+            </button>
+          )}
         </form>
       </div>
 
@@ -75,10 +116,15 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
             <div>
               <div className="name" style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>
                 {f.producto}
+                {f.veces_reportado > 1 && (
+                  <span className="badge" style={{ background: 'var(--c-pedido)', marginLeft: 8, fontSize: 10 }}>
+                    ×{f.veces_reportado}
+                  </span>
+                )}
               </div>
               <div className="sub">
                 {f.notas ? f.notas + ' · ' : ''}
-                {fmtDateTime(f.created_at)}
+                última vez {fmtDateTime(f.ultima_vez || f.created_at)}
               </div>
             </div>
             <div className="row" style={{ flex: 'none', gap: 6 }}>

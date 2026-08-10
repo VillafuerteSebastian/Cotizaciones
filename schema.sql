@@ -93,9 +93,13 @@ create table if not exists public.productos_faltantes (
   producto text not null,
   notas text,
   resuelto boolean not null default false,
+  veces_reportado integer not null default 1,
+  ultima_vez timestamptz not null default now(),
   creado_por uuid references public.profiles(id),
   created_at timestamptz not null default now()
 );
+alter table public.productos_faltantes add column if not exists veces_reportado integer not null default 1;
+alter table public.productos_faltantes add column if not exists ultima_vez timestamptz not null default now();
 
 -- ---------- Bitácora de actividad (control: quién hizo qué) ----------
 create table if not exists public.actividad (
