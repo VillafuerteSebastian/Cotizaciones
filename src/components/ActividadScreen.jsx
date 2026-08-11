@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { fmtMoney, fmtDateTime } from '../utils.js';
 
-const TIPOS_MOVIMIENTO = ['Envío a contador', 'Retiro de caja', 'Depósito a caja', 'Otro'];
+const TIPOS_MOVIMIENTO = ['Envío a contador', 'Retiro de caja', 'Cambio de Sinpe'];
 
 const CATEGORIAS = [
   { key: 'caja', titulo: '💰 Caja y movimientos', match: (a) => a.startsWith('💰') },
