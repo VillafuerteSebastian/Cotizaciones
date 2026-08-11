@@ -39,16 +39,49 @@ create table if not exists public.trabajadores_cyber (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
   activo boolean not null default true,
+  es_administrador boolean not null default false,
+  pin text,
   created_at timestamptz not null default now()
 );
+alter table public.trabajadores_cyber add column if not exists es_administrador boolean not null default false;
+alter table public.trabajadores_cyber add column if not exists pin text;
 
 -- ---------- Trabajadores/personas de Ocampo (quién solicita cada cotización) ----------
 create table if not exists public.trabajadores_ocampo (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
   activo boolean not null default true,
+  es_administrador boolean not null default false,
+  pin text,
   created_at timestamptz not null default now()
 );
+alter table public.trabajadores_ocampo add column if not exists es_administrador boolean not null default false;
+alter table public.trabajadores_ocampo add column if not exists pin text;
+
+-- El primer trabajador que se agregue en cada equipo queda como
+-- administrador automáticamente (para que siempre haya al menos uno).
+create or replace function public.auto_first_admin()
+returns trigger as $$
+declare
+  cnt integer;
+begin
+  execute format('select count(*) from public.%I', tg_table_name) into cnt;
+  if cnt = 0 then
+    new.es_administrador := true;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_auto_admin_cyber on public.trabajadores_cyber;
+create trigger trg_auto_admin_cyber
+before insert on public.trabajadores_cyber
+for each row execute function public.auto_first_admin();
+
+drop trigger if exists trg_auto_admin_ocampo on public.trabajadores_ocampo;
+create trigger trg_auto_admin_ocampo
+before insert on public.trabajadores_ocampo
+for each row execute function public.auto_first_admin();
 
 -- ---------- Cotizaciones (encabezado del encargo) ----------
 create table if not exists public.cotizaciones (
@@ -281,8 +314,17 @@ create policy "actividad_select" on public.actividad
 --    ('UUID-DE-OCAMPO', 'Ocampo', 'solicitante');
 --
 -- 3. (Opcional) Agrega algunos trabajadores de cada lado, esto también
---    se puede hacer luego desde la app en la pestaña "Equipo":
+--    se puede hacer luego desde la app en la pestaña "Equipo". El primer
+--    trabajador que agregues en cada equipo queda como administrador
+--    automáticamente (puede agregar/desactivar/eliminar a los demás).
+--    Para cambiar quién es administrador a mano:
 --
---    insert into public.trabajadores_cyber (nombre) values ('Juan Pérez');
---    insert into public.trabajadores_ocampo (nombre) values ('María Ocampo');
+--    update public.trabajadores_cyber set es_administrador = true where nombre = 'Nombre';
+--    update public.trabajadores_ocampo set es_administrador = true where nombre = 'Nombre';
+--
+--    Importante: como Cyber y Ocampo son logins compartidos, esta
+--    restricción de "administrador" es solo de la interfaz (para
+--    ordenar quién gestiona al equipo), no una regla de seguridad de
+--    la base de datos — cualquiera con el login de Cyber puede seguir
+--    escribiendo en trabajadores_cyber si usa la API directamente.
 -- =========================================================

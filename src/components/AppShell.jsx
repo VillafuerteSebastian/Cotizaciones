@@ -65,6 +65,16 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     })();
   }, [loadCotizaciones, loadProveedores, loadTrabajadoresCyber, loadTrabajadoresOcampo, loadFaltantes, loadActividad]);
 
+  const moverEstado = async (cotizacionId, nuevoEstado, cotizacion) => {
+    try {
+      await api.patch(`cotizaciones?id=eq.${cotizacionId}`, { estado: nuevoEstado });
+      await loadCotizaciones();
+      await log('Cambió estado', `#${cotizacion.folio} → ${nuevoEstado} (arrastrado)`);
+    } catch (ex) {
+      alert('No se pudo mover: ' + ex.message);
+    }
+  };
+
   const escuelasSugeridas = useMemo(() => {
     const set = new Set(cotizaciones.map((c) => c.escuela).filter(Boolean));
     return Array.from(set).sort();
@@ -119,7 +129,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
                 + Nueva cotización
               </button>
             </div>
-            {loading ? <div className="loading">Cargando…</div> : <Board cotizaciones={cotizaciones} onOpen={setOpenId} />}
+            {loading ? <div className="loading">Cargando…</div> : <Board cotizaciones={cotizaciones} onOpen={setOpenId} canDrag={isCotizador} onMoveEstado={moverEstado} />}
           </React.Fragment>
         )}
         {tab === 'proveedores' && isCotizador && (
@@ -127,7 +137,13 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
             <div className="main-header">
               <h2>Proveedores</h2>
             </div>
-            <ProveedoresScreen proveedores={proveedores} reload={loadProveedores} />
+
+            <ProveedoresScreen
+              proveedores={proveedores}
+              activeWorker={activeWorker}
+              reload={loadProveedores}
+              log={log}
+            />
           </React.Fragment>
         )}
         {tab === 'equipo' && (
@@ -137,9 +153,11 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
             </div>
             <TrabajadoresScreen
               profile={profile}
+              activeWorker={activeWorker}
               trabajadoresCyber={trabajadoresCyber}
               trabajadoresOcampo={trabajadoresOcampo}
               reload={isCotizador ? loadTrabajadoresCyber : loadTrabajadoresOcampo}
+              log={log}
             />
           </React.Fragment>
         )}

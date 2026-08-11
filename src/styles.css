@@ -53,12 +53,12 @@ input,select,textarea{font-family:inherit;}
 .stepper .bar.done{background:var(--sc);}
 
 .board{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;}
-.col{background:#EDEEF2;border-radius:12px;padding:12px;min-width:250px;flex:1;}
+.col{background:#EDEEF2;border-radius:12px;padding:12px;min-width:250px;flex:1;transition:background .15s ease, outline .15s ease;}
 .col-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:0 4px;}
 .col-head .sw{width:8px;height:8px;border-radius:50%;}
 .col-head h3{font-size:13px;margin:0;font-weight:700;flex:1;}
 .col-head .count{font-size:11.5px;color:var(--ink-soft);background:#fff;padding:1px 7px;border-radius:10px;}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:9px;box-shadow:0 1px 2px rgba(20,24,31,0.04);}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:9px;box-shadow:0 1px 2px rgba(20,24,31,0.04);transition:opacity .15s ease;}
 .card:hover{border-color:#C7CCDA;cursor:pointer;}
 .card .folio{font-size:11px;color:var(--ink-soft);font-weight:600;}
 .card .titulo{font-size:14px;font-weight:600;margin:2px 0 7px;line-height:1.3;}
@@ -73,9 +73,10 @@ input,select,textarea{font-family:inherit;}
 .modal-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
 .x-btn{background:none;border:none;font-size:20px;color:#9AA1B0;line-height:1;padding:2px 4px;}
 
-table{width:100%;border-collapse:collapse;font-size:13px;}
-th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);padding:7px 8px;border-bottom:1px solid var(--line);}
-td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top;}
+table{width:100%;min-width:600px;border-collapse:collapse;font-size:13.5px;}
+th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top;}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:4px;}
 .item-notas{color:var(--ink-soft);font-size:12px;font-style:italic;}
 .item-time{color:#9AA1B0;font-size:11px;white-space:nowrap;}
 

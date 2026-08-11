@@ -2,11 +2,57 @@ import React, { useState, useMemo } from 'react';
 import { api } from '../supabaseClient.js';
 import { fmtDateTime } from '../utils.js';
 
+function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <div className="section-label">
+        {titulo} ({items.length})
+      </div>
+      {items.length === 0 ? (
+        <div className="empty-col">{vacio}</div>
+      ) : (
+        <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Notas</th>
+              <th>Veces</th>
+              <th>Última vez</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((f) => (
+              <tr key={f.id}>
+                <td style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>{f.producto}</td>
+                <td className="item-notas">{f.notas || ''}</td>
+                <td>{f.veces_reportado > 1 ? `×${f.veces_reportado}` : '—'}</td>
+                <td className="item-time">{fmtDateTime(f.ultima_vez || f.created_at)}</td>
+                <td>
+                  <div className="row" style={{ gap: 4 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => onToggle(f)}>
+                      {f.resuelto ? 'Reabrir' : 'Resuelto'}
+                    </button>
+                    <button className="x-btn" onClick={() => onDelete(f)} title="Eliminar">
+                      ✕
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FaltantesScreen({ profile, activeWorker, faltantes, reload, log }) {
   const [producto, setProducto] = useState('');
   const [notas, setNotas] = useState('');
   const [busy, setBusy] = useState(false);
-  const [verResueltos, setVerResueltos] = useState(false);
 
   const coincidencia = useMemo(() => {
     const p = producto.trim().toLowerCase();
@@ -58,9 +104,9 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
     await reload();
   };
 
-  const visibles = [...faltantes]
-    .filter((f) => (verResueltos ? true : !f.resuelto))
-    .sort((a, b) => new Date(b.ultima_vez || b.created_at) - new Date(a.ultima_vez || a.created_at));
+  const ordenados = [...faltantes].sort((a, b) => new Date(b.ultima_vez || b.created_at) - new Date(a.ultima_vez || a.created_at));
+  const pendientes = ordenados.filter((f) => !f.resuelto);
+  const resueltos = ordenados.filter((f) => f.resuelto);
 
   return (
     <div>
@@ -101,44 +147,8 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
         </form>
       </div>
 
-      <div className="row" style={{ alignItems: 'center', marginBottom: 10, maxWidth: 480 }}>
-        <span className="section-label" style={{ marginBottom: 0 }}>
-          Pendientes ({faltantes.filter((f) => !f.resuelto).length})
-        </span>
-        <button className="link-btn" style={{ flex: 'none' }} onClick={() => setVerResueltos((v) => !v)}>
-          {verResueltos ? 'Ocultar resueltos' : 'Ver resueltos'}
-        </button>
-      </div>
-
-      <div className="prov-list">
-        {visibles.map((f) => (
-          <div className="prov-row" key={f.id} style={{ opacity: f.resuelto ? 0.55 : 1 }}>
-            <div>
-              <div className="name" style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>
-                {f.producto}
-                {f.veces_reportado > 1 && (
-                  <span className="badge" style={{ background: 'var(--c-pedido)', marginLeft: 8, fontSize: 10 }}>
-                    ×{f.veces_reportado}
-                  </span>
-                )}
-              </div>
-              <div className="sub">
-                {f.notas ? f.notas + ' · ' : ''}
-                última vez {fmtDateTime(f.ultima_vez || f.created_at)}
-              </div>
-            </div>
-            <div className="row" style={{ flex: 'none', gap: 6 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => toggleResuelto(f)}>
-                {f.resuelto ? 'Reabrir' : 'Resuelto'}
-              </button>
-              <button className="x-btn" onClick={() => del(f)} title="Eliminar">
-                ✕
-              </button>
-            </div>
-          </div>
-        ))}
-        {visibles.length === 0 && <div className="empty-col">Nada pendiente 🎉</div>}
-      </div>
+      <TablaFaltantes titulo="Pendientes" items={pendientes} onToggle={toggleResuelto} onDelete={del} vacio="Nada pendiente 🎉" />
+      <TablaFaltantes titulo="Resueltos" items={resueltos} onToggle={toggleResuelto} onDelete={del} vacio="Aún no hay nada resuelto." />
     </div>
   );
 }

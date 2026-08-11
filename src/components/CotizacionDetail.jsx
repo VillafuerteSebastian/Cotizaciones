@@ -278,6 +278,7 @@ export default function CotizacionDetail({
 
   const [producto, setProducto] = useState('');
   const [cantidad, setCantidad] = useState(1);
+  const [imagenSolicitante, setImagenSolicitante] = useState(null);
 
   const load = useCallback(async () => {
     const data = await api.get(
@@ -299,10 +300,12 @@ export default function CotizacionDetail({
         cotizacion_id: id,
         producto: producto.trim(),
         cantidad: Number(cantidad) || 1,
+        imagen: imagenSolicitante || null,
         agregado_por: profile.id,
       });
       setProducto('');
       setCantidad(1);
+      setImagenSolicitante(null);
       await load();
       onChanged();
       await log('Agregó producto', `${producto.trim()} (cant. ${cantidad}) en #${c.folio}`);
@@ -408,6 +411,7 @@ export default function CotizacionDetail({
         <div className="divider" />
         <div className="section-label">Productos cotizados ({(c.cotizacion_items || []).length})</div>
         {err && <div className="err">{err}</div>}
+        <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -483,6 +487,7 @@ export default function CotizacionDetail({
             )}
           </tbody>
         </table>
+        </div>
         <div className="total-line">
           <span>Total</span>
           <span>{fmtMoney(total)}</span>
@@ -527,6 +532,9 @@ export default function CotizacionDetail({
                   <label>Cantidad</label>
                   <input type="number" min="0" step="any" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
                 </div>
+              </div>
+              <div className="row" style={{ marginBottom: 14 }}>
+                <ImagenInput value={imagenSolicitante} onChange={setImagenSolicitante} />
               </div>
               <button className="btn btn-primary" disabled={busy || !producto.trim()}>
                 {busy ? 'Agregando…' : 'Agregar producto'}

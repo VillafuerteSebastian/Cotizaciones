@@ -146,8 +146,25 @@ uno por uno con cantidad (como antes) — es opcional, no obligatorio.
 - **Bitácora de actividad** (pestaña "Actividad", solo Cyber): registra
   quién creó una cotización, agregó o editó un producto, lo eliminó, o
   cambió el estado — con nombre de la persona, no solo "Cyber"/"Ocampo".
+  También sirve para anotar movimientos de caja (envíos al contador,
+  retiros, depósitos) a mano.
 - **Confirmación antes de borrar** productos y faltantes, para evitar
   eliminar algo por error con un solo clic.
+- **Fotos también del lado de Ocampo**: al agregar un producto suelto se
+  puede pegar una imagen copiada (Ctrl+V) o subir un archivo, igual que
+  del lado de Cyber — útil cuando mandan una foto por WhatsApp de lo
+  que necesitan.
+- **Administrador por equipo**: en la pestaña "Equipo", una persona de
+  cada lado (Cyber y Ocampo) puede marcarse como administrador — solo
+  los administradores pueden agregar, desactivar o eliminar gente de su
+  equipo. El primero que se agregue en cada equipo queda como
+  administrador automáticamente. *Nota:* como el login sigue siendo uno
+  compartido por equipo, esto ordena quién gestiona qué dentro de la
+  app, pero no es una restricción de seguridad de la base de datos —ver
+  el comentario en `schema.sql` para más detalle.
+- **"Faltantes en tienda" en dos tablas** separadas (Pendientes /
+  Resueltos) en vez de una sola lista con un botón para mostrar/ocultar,
+  para ver la diferencia más clara de un vistazo.
 
 ## Reglas de permisos (aplicadas también en la base de datos, no solo en la UI)
 - Solo Cyber puede ver y administrar Proveedores.

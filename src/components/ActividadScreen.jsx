@@ -1,8 +1,67 @@
-import React, { useState } from 'react';
-import { api } from '../supabaseClient.js';
+import React, { useState, useMemo } from 'react';
 import { fmtMoney, fmtDateTime } from '../utils.js';
 
 const TIPOS_MOVIMIENTO = ['Envío a contador', 'Retiro de caja', 'Depósito a caja', 'Otro'];
+
+const CATEGORIAS = [
+  { key: 'caja', titulo: '💰 Caja y movimientos', match: (a) => a.startsWith('💰') },
+  { key: 'cotizaciones', titulo: '📋 Cotizaciones', match: (a) => ['Nueva cotización', 'Cambió estado'].includes(a) },
+  {
+    key: 'productos',
+    titulo: '📦 Productos',
+    match: (a) => ['Agregó producto', 'Agregó producto cotizado', 'Editó producto', 'Eliminó producto'].includes(a),
+  },
+  {
+    key: 'faltantes',
+    titulo: '🔍 Faltantes en tienda',
+    match: (a) => ['Agregó faltante', 'Reportó faltante otra vez', 'Resolvió faltante', 'Reabrió faltante', 'Eliminó faltante'].includes(a),
+  },
+  {
+    key: 'equipo',
+    titulo: '👥 Equipo',
+    match: (a) =>
+      ['Agregó a equipo', 'Desactivó persona', 'Activó persona', 'Hizo administrador', 'Quitó administrador', 'Cambió PIN', 'Eliminó de equipo'].includes(
+        a
+      ),
+  },
+];
+
+function categoriaDe(accion) {
+  return CATEGORIAS.find((c) => c.match(accion))?.key || 'otros';
+}
+
+function TablaActividad({ titulo, items }) {
+  if (items.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <div className="section-label">
+        {titulo} ({items.length})
+      </div>
+      <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Quién</th>
+            <th>Acción</th>
+            <th>Detalle</th>
+            <th>Cuándo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((a) => (
+            <tr key={a.id}>
+              <td>{a.trabajador_nombre || (a.profile_role === 'cotizador' ? 'Cyber' : 'Ocampo')}</td>
+              <td>{a.accion}</td>
+              <td className="item-notas">{a.detalle}</td>
+              <td className="item-time">{fmtDateTime(a.created_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  );
+}
 
 export default function ActividadScreen({ profile, activeWorker, actividad, reload, log }) {
   const [tipo, setTipo] = useState(TIPOS_MOVIMIENTO[0]);
@@ -21,6 +80,16 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
     setNota('');
     setBusy(false);
   };
+
+  const grupos = useMemo(() => {
+    const porCategoria = {};
+    for (const a of actividad) {
+      const key = categoriaDe(a.accion);
+      if (!porCategoria[key]) porCategoria[key] = [];
+      porCategoria[key].push(a);
+    }
+    return porCategoria;
+  }, [actividad]);
 
   return (
     <div>
@@ -56,23 +125,15 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
       </div>
 
       <p className="hint" style={{ marginBottom: 16 }}>
-        Registro de movimientos de caja y acciones del sistema, para que todo Cyber lo vea.
+        Separado por tipo para que sea más fácil de revisar.
       </p>
-      <div className="prov-list">
-        {actividad.map((a) => (
-          <div className="prov-row" key={a.id}>
-            <div>
-              <div className="name">
-                {a.trabajador_nombre || (a.profile_role === 'cotizador' ? 'Cyber' : 'Ocampo')} · {a.accion}
-              </div>
-              <div className="sub">
-                {a.detalle} · {fmtDateTime(a.created_at)}
-              </div>
-            </div>
-          </div>
-        ))}
-        {actividad.length === 0 && <div className="empty-col">Aún no hay actividad registrada.</div>}
-      </div>
+
+      {CATEGORIAS.map((cat) => (
+        <TablaActividad key={cat.key} titulo={cat.titulo} items={grupos[cat.key] || []} />
+      ))}
+      <TablaActividad titulo="🗂️ Otros" items={grupos.otros || []} />
+
+      {actividad.length === 0 && <div className="empty-col">Aún no hay actividad registrada.</div>}
     </div>
   );
 }

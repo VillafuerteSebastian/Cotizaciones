@@ -17,7 +17,15 @@ export default function QuienEresScreen({ profile, onSelect }) {
     load();
   }, [load]);
 
-  const choose = (worker) => {
+  const choose = (worker, skipPinCheck) => {
+    if (worker.pin && !skipPinCheck) {
+      const entered = window.prompt(`"${worker.nombre}" está protegido con PIN. Ingresa el PIN para continuar:`);
+      if (entered === null) return; // canceló
+      if (entered.trim() !== worker.pin) {
+        alert('PIN incorrecto.');
+        return;
+      }
+    }
     setActiveWorker(profile.role, worker);
     onSelect(worker);
   };
@@ -29,7 +37,17 @@ export default function QuienEresScreen({ profile, onSelect }) {
     setBusy(true);
     try {
       const created = await api.post(tabla, { nombre: nombre.trim() });
-      choose(created[0]);
+      let worker = created[0];
+      if (worker.es_administrador) {
+        const pin = window.prompt(
+          `Eres la primera persona de este equipo, así que quedas como administrador. Ponle un PIN (4 dígitos o más) para que solo tú puedas seleccionarte:`
+        );
+        if (pin && pin.trim()) {
+          const updated = await api.patch(`${tabla}?id=eq.${worker.id}`, { pin: pin.trim() });
+          worker = updated[0];
+        }
+      }
+      choose(worker, true);
     } catch (ex) {
       setErr(ex.message);
     } finally {
