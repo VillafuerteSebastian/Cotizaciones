@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api, setActiveWorker } from '../supabaseClient.js';
+import { hashPin } from '../pinUtils.js';
+import PinModal from './PinModal.jsx';
 
 export default function QuienEresScreen({ profile, onSelect }) {
   const tabla = profile.role === 'cotizador' ? 'trabajadores_cyber' : 'trabajadores_ocampo';
@@ -7,6 +9,8 @@ export default function QuienEresScreen({ profile, onSelect }) {
   const [nombre, setNombre] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [pinTarget, setPinTarget] = useState(null); // worker pendiente de verificar PIN
+  const [setPinFor, setSetPinFor] = useState(null); // worker nuevo (admin bootstrap) al que hay que ponerle PIN
 
   const load = useCallback(async () => {
     const data = await api.get(`${tabla}?select=*&activo=eq.true&order=nombre.asc`);
@@ -17,42 +21,58 @@ export default function QuienEresScreen({ profile, onSelect }) {
     load();
   }, [load]);
 
-  const choose = (worker, skipPinCheck) => {
-    if (worker.pin && !skipPinCheck) {
-      const entered = window.prompt(`"${worker.nombre}" está protegido con PIN. Ingresa el PIN para continuar:`);
-      if (entered === null) return; // canceló
-      if (entered.trim() !== worker.pin) {
-        alert('PIN incorrecto.');
-        return;
-      }
-    }
+  const proceed = (worker) => {
     setActiveWorker(profile.role, worker);
     onSelect(worker);
   };
 
-  const addAndChoose = async (e) => {
+  const choose = (worker) => {
+    if (worker.pin) {
+      setPinTarget(worker);
+      return;
+    }
+    proceed(worker);
+  };
+
+  const verifyPin = async (pin) => {
+    const hash = await hashPin(pin);
+    if (hash !== pinTarget.pin) {
+      throw new Error('PIN incorrecto.');
+    }
+    const w = pinTarget;
+    setPinTarget(null);
+    proceed(w);
+  };
+
+  // Solo para arrancar un equipo vacío (aún no hay nadie, por lo tanto
+  // tampoco hay administrador). Una vez hay al menos una persona, agregar
+  // gente nueva solo lo puede hacer un administrador desde "Equipo".
+  const crearPrimeraPersona = async (e) => {
     e.preventDefault();
     if (!nombre.trim()) return;
     setErr('');
     setBusy(true);
     try {
       const created = await api.post(tabla, { nombre: nombre.trim() });
-      let worker = created[0];
+      const worker = created[0];
       if (worker.es_administrador) {
-        const pin = window.prompt(
-          `Eres la primera persona de este equipo, así que quedas como administrador. Ponle un PIN (4 dígitos o más) para que solo tú puedas seleccionarte:`
-        );
-        if (pin && pin.trim()) {
-          const updated = await api.patch(`${tabla}?id=eq.${worker.id}`, { pin: pin.trim() });
-          worker = updated[0];
-        }
+        setSetPinFor(worker);
+      } else {
+        proceed(worker);
       }
-      choose(worker, true);
     } catch (ex) {
       setErr(ex.message);
     } finally {
       setBusy(false);
     }
+  };
+
+  const setBootstrapPin = async (pin) => {
+    const hash = await hashPin(pin);
+    const updated = await api.patch(`${tabla}?id=eq.${setPinFor.id}`, { pin: hash });
+    const w = setPinFor;
+    setSetPinFor(null);
+    proceed(updated[0] || w);
   };
 
   return (
@@ -75,20 +95,51 @@ export default function QuienEresScreen({ profile, onSelect }) {
                 onClick={() => choose(w)}
               >
                 {w.nombre}
+                {w.pin ? ' 🔒' : ''}
               </button>
             ))}
           </div>
         )}
-        <form onSubmit={addAndChoose}>
-          <div className="field">
-            <label>{lista && lista.length > 0 ? 'O agrega a alguien nuevo' : 'Agrega tu nombre'}</label>
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre completo" />
-          </div>
-          <button className="btn btn-primary btn-block" disabled={busy}>
-            {busy ? 'Guardando…' : 'Continuar'}
-          </button>
-        </form>
+
+        {lista !== null && lista.length === 0 && (
+          <form onSubmit={crearPrimeraPersona}>
+            <div className="field">
+              <label>Todavía no hay nadie registrado. Agrega tu nombre para empezar</label>
+              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre completo" />
+            </div>
+            <button className="btn btn-primary btn-block" disabled={busy}>
+              {busy ? 'Guardando…' : 'Continuar'}
+            </button>
+            <p className="hint" style={{ marginTop: 8 }}>
+              Quedarás como administrador de este equipo (eres el primero). Después, solo un administrador
+              podrá agregar a los demás desde "Equipo".
+            </p>
+          </form>
+        )}
+
+        {lista !== null && lista.length > 0 && (
+          <p className="hint">¿No estás en la lista? Pídele a un administrador que te agregue desde "Equipo".</p>
+        )}
       </div>
+
+      {pinTarget && (
+        <PinModal
+          title={`PIN de ${pinTarget.nombre}`}
+          subtitle="Esta persona está protegida con PIN."
+          confirmLabel="Entrar"
+          onCancel={() => setPinTarget(null)}
+          onSubmit={verifyPin}
+        />
+      )}
+      {setPinFor && (
+        <PinModal
+          title="Crea tu PIN de administrador"
+          subtitle="Eres la primera persona de este equipo, así que quedas como administrador. Este PIN se pedirá cada vez que alguien intente seleccionarte."
+          confirmLabel="Guardar PIN"
+          onCancel={() => proceed(setPinFor)}
+          onSubmit={setBootstrapPin}
+        />
+      )}
     </div>
   );
 }

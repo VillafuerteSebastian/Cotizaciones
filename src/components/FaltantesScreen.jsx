@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { api } from '../supabaseClient.js';
 import { fmtDateTime } from '../utils.js';
+import Pager, { usePager } from './Pager.jsx';
 
 function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
+  const { pageItems, page, setPage, totalPages } = usePager(items, 10);
   return (
     <div style={{ marginBottom: 26 }}>
       <div className="section-label">
@@ -23,7 +25,7 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((f) => (
+            {pageItems.map((f) => (
               <tr key={f.id}>
                 <td style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>{f.producto}</td>
                 <td className="item-notas">{f.notas || ''}</td>
@@ -45,6 +47,7 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
         </table>
         </div>
       )}
+      <Pager page={page} totalPages={totalPages} onChange={setPage} />
     </div>
   );
 }

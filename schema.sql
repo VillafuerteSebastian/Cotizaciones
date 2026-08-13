@@ -296,6 +296,19 @@ drop policy if exists "actividad_select" on public.actividad;
 create policy "actividad_select" on public.actividad
   for select using (public.has_role('cotizador'));
 
+-- Si un proveedor se elimina, los productos que lo tenían asignado
+-- quedan sin proveedor en vez de bloquear el borrado.
+alter table public.cotizacion_items drop constraint if exists cotizacion_items_proveedor_id_fkey;
+alter table public.cotizacion_items add constraint cotizacion_items_proveedor_id_fkey
+  foreign key (proveedor_id) references public.proveedores(id) on delete set null;
+
+-- El PIN ahora se guarda como hash (SHA-256), no en texto plano. Si ya
+-- tenías PINs puestos con la versión anterior (texto plano), no sirven
+-- con el nuevo formato — se limpian aquí para que cada administrador
+-- vuelva a ponerse uno desde la app (queda cifrado desde el primer momento).
+update public.trabajadores_cyber set pin = null where pin is not null and length(pin) <> 64;
+update public.trabajadores_ocampo set pin = null where pin is not null and length(pin) <> 64;
+
 -- =========================================================
 -- PASO FINAL (manual, ver guía):
 -- 1. Crea 2 usuarios en Authentication → Users → Add user.

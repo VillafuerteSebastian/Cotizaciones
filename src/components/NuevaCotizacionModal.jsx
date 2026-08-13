@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
 
 export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSugeridas, onClose, onCreated }) {
+  const isCotizador = profile.role === 'cotizador';
   const [titulo, setTitulo] = useState('');
   const [escuela, setEscuela] = useState('');
   const [productos, setProductos] = useState('');
@@ -21,14 +22,19 @@ export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSu
     }
     setBusy(true);
     try {
-      const created = await api.post('cotizaciones', {
+      const payload = {
         titulo: titulo.trim(),
         escuela: escuela.trim(),
-        solicitante_trabajador_id: activeWorker.id,
+        // El vínculo con la tabla de trabajadores de Ocampo solo aplica
+        // cuando quien crea es Ocampo; si es Cyber, se deja sin ese
+        // vínculo (la tabla es de otro equipo) pero igual se guarda el
+        // nombre de quien la creó para mostrarlo.
+        solicitante_trabajador_id: !isCotizador ? activeWorker.id : null,
         solicitante_nombre: activeWorker.nombre,
         creado_por: profile.id,
         notas_generales: productos.trim() || null,
-      });
+      };
+      const created = await api.post('cotizaciones', payload);
       onCreated(created[0].id, `${escuela.trim()} — ${titulo.trim()}`);
     } catch (ex) {
       setErr(ex.message);
@@ -52,7 +58,7 @@ export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSu
           </button>
         </div>
         <p className="hint" style={{ marginBottom: 14 }}>
-          Solicita: <strong>{activeWorker ? activeWorker.nombre : '—'}</strong>
+          {isCotizador ? 'Creada por' : 'Solicita'}: <strong>{activeWorker ? activeWorker.nombre : '—'}</strong>
         </p>
         {err && <div className="err">{err}</div>}
         <form onSubmit={submit}>
@@ -76,14 +82,18 @@ export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSu
             </datalist>
           </div>
           <div className="field">
-            <label>Productos a cotizar</label>
+            <label>{isCotizador ? 'Notas / productos (opcional)' : 'Productos a cotizar'}</label>
             <textarea
               value={productos}
               onChange={(e) => setProductos(e.target.value)}
-              placeholder={'Escribe aquí la lista, uno por línea. Ej:\n5 pizarras acrílicas\n10 marcadores de agua\n1 engrapadora industrial'}
+              placeholder={
+                isCotizador
+                  ? 'Notas sobre el encargo, si hacen falta…'
+                  : 'Escribe aquí la lista, uno por línea. Ej:\n5 pizarras acrílicas\n10 marcadores de agua\n1 engrapadora industrial'
+              }
               style={{ minHeight: 110 }}
             />
-            <p className="hint">Cyber los verá aquí y agregará cada uno con precio, proveedor y demás datos.</p>
+            {!isCotizador && <p className="hint">Cyber los verá aquí y agregará cada uno con precio, proveedor y demás datos.</p>}
           </div>
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? 'Creando…' : 'Crear cotización'}

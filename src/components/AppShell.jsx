@@ -65,6 +65,16 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     })();
   }, [loadCotizaciones, loadProveedores, loadTrabajadoresCyber, loadTrabajadoresOcampo, loadFaltantes, loadActividad]);
 
+  // Recarga la actividad al entrar a esa pestaña, y periódicamente mientras
+  // se está viendo, para reflejar cambios hechos por otras personas/sesiones
+  // sin tener que apretar F5.
+  useEffect(() => {
+    if (tab !== 'actividad' || !isCotizador) return;
+    loadActividad();
+    const interval = setInterval(loadActividad, 15000);
+    return () => clearInterval(interval);
+  }, [tab, isCotizador, loadActividad]);
+
   const moverEstado = async (cotizacionId, nuevoEstado, cotizacion) => {
     try {
       await api.patch(`cotizaciones?id=eq.${cotizacionId}`, { estado: nuevoEstado });
@@ -80,7 +90,12 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     return Array.from(set).sort();
   }, [cotizaciones]);
 
-  const log = (accion, detalle) => logActividad(profile, activeWorker, accion, detalle);
+  const log = async (accion, detalle) => {
+    await logActividad(profile, activeWorker, accion, detalle);
+    // Mantiene la pestaña de actividad al día automáticamente, sin F5,
+    // sin importar desde qué pantalla se generó el registro.
+    if (isCotizador) loadActividad();
+  };
 
   return (
     <div className="shell">
@@ -137,13 +152,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
             <div className="main-header">
               <h2>Proveedores</h2>
             </div>
-
-            <ProveedoresScreen
-              proveedores={proveedores}
-              activeWorker={activeWorker}
-              reload={loadProveedores}
-              log={log}
-            />
+            <ProveedoresScreen activeWorker={activeWorker} proveedores={proveedores} reload={loadProveedores} />
           </React.Fragment>
         )}
         {tab === 'equipo' && (

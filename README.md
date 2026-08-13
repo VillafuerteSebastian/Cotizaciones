@@ -166,8 +166,30 @@ uno por uno con cantidad (como antes) — es opcional, no obligatorio.
   Resueltos) en vez de una sola lista con un botón para mostrar/ocultar,
   para ver la diferencia más clara de un vistazo.
 
+- **"Faltantes en tienda" en dos tablas** separadas (Pendientes /
+  Resueltos) en vez de una sola lista con un botón para mostrar/ocultar,
+  para ver la diferencia más clara de un vistazo, y ambas paginadas de
+  10 en 10.
+- **Actividad separada por tipo**, cada tabla paginada de 10 en 10.
+- **PIN cifrado**: ya no se guarda en texto plano — se guarda un hash
+  (SHA-256), y se escribe/verifica con un campo tipo contraseña (no se
+  ve en pantalla), no con una ventana de `prompt()` que sí lo mostraba.
+- **Proveedores**: ahora solo el administrador de Cyber puede agregar,
+  editar o eliminar proveedores; cualquiera con el login de Cyber puede
+  verlos (nombre, contacto, teléfono, correo, notas), pero no tocarlos.
+- **Cyber también puede crear cotizaciones completas** (antes fallaba
+  por un problema de la base de datos). Cuando Cyber crea una, puede
+  agregar productos ya cotizados de una vez (precio, proveedor, etc.),
+  igual que cuando completa una que vino de Ocampo. El flujo de Ocampo
+  no cambió.
+- **Alta de trabajadores centralizada**: ya no se puede "agregar y
+  entrar" libremente desde "¿Quién eres?" — solo se permite cuando el
+  equipo está vacío (para arrancar). De ahí en adelante, solo un
+  administrador agrega gente nueva, desde "Equipo".
+- **Ventanas emergentes centradas** en la pantalla, en vez de pegadas
+  arriba.
+
 ## Reglas de permisos (aplicadas también en la base de datos, no solo en la UI)
-- Solo Cyber puede ver y administrar Proveedores.
 - Solo Cyber puede ver "Faltantes en tienda" y la bitácora de "Actividad".
 - Ocampo puede editar `producto` y `cantidad` de un item que él mismo
   agregó; no puede tocar proveedor, precio, cantidad disponible,

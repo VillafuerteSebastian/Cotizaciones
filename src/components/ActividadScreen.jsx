@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { fmtMoney, fmtDateTime } from '../utils.js';
+import Pager, { usePager } from './Pager.jsx';
 
-const TIPOS_MOVIMIENTO = ['Envío a contador', 'Retiro de caja', 'Cambio de Sinpe'];
+const TIPOS_MOVIMIENTO = ['Envío a contador', 'Retiro de caja', 'Cambio de sinpe'];
 
 const CATEGORIAS = [
   { key: 'caja', titulo: '💰 Caja y movimientos', match: (a) => a.startsWith('💰') },
@@ -31,6 +32,7 @@ function categoriaDe(accion) {
 }
 
 function TablaActividad({ titulo, items }) {
+  const { pageItems, page, setPage, totalPages } = usePager(items, 10);
   if (items.length === 0) return null;
   return (
     <div style={{ marginBottom: 26 }}>
@@ -48,7 +50,7 @@ function TablaActividad({ titulo, items }) {
           </tr>
         </thead>
         <tbody>
-          {items.map((a) => (
+          {pageItems.map((a) => (
             <tr key={a.id}>
               <td>{a.trabajador_nombre || (a.profile_role === 'cotizador' ? 'Cyber' : 'Ocampo')}</td>
               <td>{a.accion}</td>
@@ -59,6 +61,7 @@ function TablaActividad({ titulo, items }) {
         </tbody>
       </table>
       </div>
+      <Pager page={page} totalPages={totalPages} onChange={setPage} />
     </div>
   );
 }

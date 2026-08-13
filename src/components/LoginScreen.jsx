@@ -34,7 +34,6 @@ export default function LoginScreen({ onLogin, onReconfigure }) {
               type="text"
               autoCapitalize="none"
               autoCorrect="off"
-              placeholder="cyber / ocampo"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}

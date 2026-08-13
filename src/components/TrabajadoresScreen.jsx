@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
+import { hashPin } from '../pinUtils.js';
+import PinModal from './PinModal.jsx';
 
 export default function TrabajadoresScreen({ profile, activeWorker, trabajadoresCyber, trabajadoresOcampo, reload, log }) {
   const isCotizador = profile.role === 'cotizador';
@@ -8,61 +10,78 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
   const isAdmin = Boolean(activeWorker && activeWorker.es_administrador);
   const [nombre, setNombre] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pinModal, setPinModal] = useState(null); // { worker, mode: 'set-admin' | 'change' }
 
   const add = async (e) => {
     e.preventDefault();
     if (!nombre.trim()) return;
     setBusy(true);
-    await api.post(tabla, { nombre: nombre.trim() });
-    if (log) await log('Agregó a equipo', nombre.trim());
-    setNombre('');
-    await reload();
-    setBusy(false);
+    try {
+      await api.post(tabla, { nombre: nombre.trim() });
+      if (log) await log('Agregó a equipo', nombre.trim());
+      setNombre('');
+      await reload();
+    } catch (ex) {
+      alert('No se pudo agregar: ' + ex.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const toggleActivo = async (t) => {
-    await api.patch(`${tabla}?id=eq.${t.id}`, { activo: !t.activo });
-    if (log) await log(t.activo ? 'Desactivó persona' : 'Activó persona', t.nombre);
+    try {
+      await api.patch(`${tabla}?id=eq.${t.id}`, { activo: !t.activo });
+      if (log) await log(t.activo ? 'Desactivó persona' : 'Activó persona', t.nombre);
+      await reload();
+    } catch (ex) {
+      alert('No se pudo actualizar: ' + ex.message);
+    }
+  };
+
+  const quitarAdmin = async (t) => {
+    if (!window.confirm(`¿Quitarle el rol de administrador a "${t.nombre}"?`)) return;
+    try {
+      await api.patch(`${tabla}?id=eq.${t.id}`, { es_administrador: false, pin: null });
+      if (log) await log('Quitó administrador', t.nombre);
+      await reload();
+    } catch (ex) {
+      alert('No se pudo actualizar: ' + ex.message);
+    }
+  };
+
+  const quitarPin = async (t) => {
+    if (!window.confirm(`¿Quitarle el PIN a "${t.nombre}"? Cualquiera podrá seleccionarlo sin PIN.`)) return;
+    try {
+      await api.patch(`${tabla}?id=eq.${t.id}`, { pin: null });
+      if (log) await log('Quitó PIN', t.nombre);
+      await reload();
+    } catch (ex) {
+      alert('No se pudo actualizar: ' + ex.message);
+    }
+  };
+
+  const guardarPin = async (pin) => {
+    const hash = await hashPin(pin);
+    const t = pinModal.worker;
+    const patch = pinModal.mode === 'set-admin' ? { es_administrador: true, pin: hash } : { pin: hash };
+    const updated = await api.patch(`${tabla}?id=eq.${t.id}`, patch);
+    if (!updated || !updated[0] || updated[0].pin !== hash) {
+      throw new Error('El PIN no se guardó. Vuelve a correr schema.sql en Supabase e inténtalo de nuevo.');
+    }
+    if (log) await log(pinModal.mode === 'set-admin' ? 'Hizo administrador' : 'Cambió PIN', t.nombre);
+    setPinModal(null);
     await reload();
-  };
-
-  const toggleAdmin = async (t) => {
-    try {
-      if (t.es_administrador) {
-        if (!window.confirm(`¿Quitarle el rol de administrador a "${t.nombre}"?`)) return;
-        await api.patch(`${tabla}?id=eq.${t.id}`, { es_administrador: false, pin: null });
-        if (log) await log('Quitó administrador', t.nombre);
-      } else {
-        const pin = window.prompt(
-          `Vas a hacer administrador a "${t.nombre}". Ponle un PIN (4 dígitos o más) que se pedirá cada vez que alguien intente seleccionarlo en "¿Quién eres?":`
-        );
-        if (!pin || !pin.trim()) return; // cancelado, no se hace admin sin PIN
-        await api.patch(`${tabla}?id=eq.${t.id}`, { es_administrador: true, pin: pin.trim() });
-        if (log) await log('Hizo administrador', t.nombre);
-      }
-      await reload();
-    } catch (ex) {
-      alert(`No se pudo actualizar: ${ex.message}`);
-    }
-  };
-
-  const cambiarPin = async (t) => {
-    const pin = window.prompt(`Nuevo PIN para "${t.nombre}" (déjalo vacío para quitarlo):`, '');
-    if (pin === null) return; // canceló
-    try {
-      await api.patch(`${tabla}?id=eq.${t.id}`, { pin: pin.trim() || null });
-      if (log) await log('Cambió PIN', t.nombre);
-      await reload();
-    } catch (ex) {
-      alert(`No se pudo guardar el PIN: ${ex.message}`);
-    }
   };
 
   const eliminar = async (t) => {
     if (!window.confirm(`¿Eliminar a "${t.nombre}" del equipo? Esto no borra las cotizaciones ya hechas.`)) return;
-    await api.del(`${tabla}?id=eq.${t.id}`);
-    if (log) await log('Eliminó de equipo', t.nombre);
-    await reload();
+    try {
+      await api.del(`${tabla}?id=eq.${t.id}`);
+      if (log) await log('Eliminó de equipo', t.nombre);
+      await reload();
+    } catch (ex) {
+      alert('No se pudo eliminar: ' + ex.message);
+    }
   };
 
   return (
@@ -116,13 +135,25 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
             </div>
             {isAdmin && (
               <div className="row" style={{ flex: 'none', gap: 6, flexWrap: 'wrap' }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => toggleAdmin(t)}>
-                  {t.es_administrador ? 'Quitar admin' : 'Hacer admin'}
-                </button>
-                {t.es_administrador && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => cambiarPin(t)}>
-                    {t.pin ? 'Cambiar PIN' : 'Poner PIN'}
+                {!t.es_administrador && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => setPinModal({ worker: t, mode: 'set-admin' })}>
+                    Hacer admin
                   </button>
+                )}
+                {t.es_administrador && (
+                  <React.Fragment>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setPinModal({ worker: t, mode: 'change' })}>
+                      {t.pin ? 'Cambiar PIN' : 'Poner PIN'}
+                    </button>
+                    {t.pin && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => quitarPin(t)}>
+                        Quitar PIN
+                      </button>
+                    )}
+                    <button className="btn btn-ghost btn-sm" onClick={() => quitarAdmin(t)}>
+                      Quitar admin
+                    </button>
+                  </React.Fragment>
                 )}
                 <button className="btn btn-ghost btn-sm" onClick={() => toggleActivo(t)}>
                   {t.activo ? 'Desactivar' : 'Activar'}
@@ -136,6 +167,16 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
         ))}
         {lista.length === 0 && <div className="empty-col">Aún no hay nadie en la lista.</div>}
       </div>
+
+      {pinModal && (
+        <PinModal
+          title={pinModal.mode === 'set-admin' ? `PIN para ${pinModal.worker.nombre}` : `Cambiar PIN de ${pinModal.worker.nombre}`}
+          subtitle="Este PIN se pedirá cada vez que alguien intente seleccionar a esta persona."
+          confirmLabel="Guardar"
+          onCancel={() => setPinModal(null)}
+          onSubmit={guardarPin}
+        />
+      )}
     </div>
   );
 }
