@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../supabaseClient.js';
-import { resizeImageToDataUrl } from '../imageUtils.js';
 import { ESTADOS, fmtMoney, fmtDateTime, itemsTotal } from '../utils.js';
 import { StatusStepper, Badge } from './StatusStepper.jsx';
+import ImagenInput from './ImagenInput.jsx';
+import { ImageThumb } from './ImageViewer.jsx';
 
-function NotasGenerales({ value, onSave, isSolicitante }) {
+function NotasGenerales({ value, imagen, onSave, isSolicitante }) {
   const [v, setV] = useState(value);
+  const [img, setImg] = useState(imagen);
   const [saved, setSaved] = useState(true);
-  useEffect(() => setV(value), [value]);
+  useEffect(() => {
+    setV(value);
+    setImg(imagen);
+  }, [value, imagen]);
   return (
     <div className="field">
       <textarea
@@ -19,12 +24,22 @@ function NotasGenerales({ value, onSave, isSolicitante }) {
         style={{ minHeight: 90 }}
         placeholder={isSolicitante ? 'Lista de productos a cotizar, uno por línea…' : 'Sin productos anotados.'}
       />
+      <div style={{ marginTop: 8 }}>
+        <ImagenInput
+          value={img}
+          onChange={(dataUrl) => {
+            setImg(dataUrl);
+            setSaved(false);
+          }}
+          label="Foto de la lista (opcional, ej. captura de Excel)"
+        />
+      </div>
       {!saved && (
         <button
           className="btn btn-ghost btn-sm"
           style={{ marginTop: 6 }}
           onClick={async () => {
-            await onSave(v);
+            await onSave(v, img);
             setSaved(true);
           }}
         >
@@ -35,68 +50,7 @@ function NotasGenerales({ value, onSave, isSolicitante }) {
   );
 }
 
-function ImagenInput({ value, onChange }) {
-  const [busy, setBusy] = useState(false);
 
-  const handleFile = async (file) => {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const dataUrl = await resizeImageToDataUrl(file);
-      onChange(dataUrl);
-    } catch (ex) {
-      alert(ex.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handlePaste = (e) => {
-    const items = e.clipboardData?.items || [];
-    for (const item of items) {
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
-        e.preventDefault();
-        handleFile(item.getAsFile());
-        return;
-      }
-    }
-  };
-
-  return (
-    <div className="field" style={{ marginBottom: 0 }}>
-      <label>Foto (opcional)</label>
-      {value && (
-        <div style={{ marginBottom: 6 }}>
-          <img src={value} alt="captura" style={{ maxWidth: 90, maxHeight: 90, borderRadius: 8, border: '1px solid var(--line)' }} />
-          <button type="button" className="link-btn" style={{ display: 'block', marginTop: 4 }} onClick={() => onChange(null)}>
-            Quitar
-          </button>
-        </div>
-      )}
-      <div
-        tabIndex={0}
-        onPaste={handlePaste}
-        style={{
-          border: '1px dashed var(--line)',
-          borderRadius: 8,
-          padding: '8px 10px',
-          fontSize: 12.5,
-          color: 'var(--ink-soft)',
-          marginBottom: 6,
-          outline: 'none',
-        }}
-      >
-        {busy ? 'Procesando…' : 'Haz clic aquí y pega una imagen copiada (Ctrl+V), o elige un archivo abajo'}
-      </div>
-      <input
-        type="file"
-        accept="image/*"
-        disabled={busy}
-        onChange={(e) => handleFile(e.target.files[0])}
-      />
-    </div>
-  );
-}
 
 // Fila de producto en modo edición para Ocampo (solo producto y cantidad)
 function ItemRowEditSolicitante({ it, onSave, onCancel }) {
@@ -265,20 +219,16 @@ export default function CotizacionDetail({
   trabajadoresCyber,
   onClose,
   onChanged,
+  onTouch,
   reloadProveedores,
   log,
 }) {
   const [c, setC] = useState(null);
   const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showAddCotizador, setShowAddCotizador] = useState(false);
   const isCotizador = profile.role === 'cotizador';
   const isSolicitante = profile.role === 'solicitante';
-
-  const [producto, setProducto] = useState('');
-  const [cantidad, setCantidad] = useState(1);
-  const [imagenSolicitante, setImagenSolicitante] = useState(null);
 
   const load = useCallback(async () => {
     const data = await api.get(
@@ -290,31 +240,6 @@ export default function CotizacionDetail({
   useEffect(() => {
     load();
   }, [load]);
-
-  const addItemSolicitante = async (e) => {
-    e.preventDefault();
-    setErr('');
-    setBusy(true);
-    try {
-      await api.post('cotizacion_items', {
-        cotizacion_id: id,
-        producto: producto.trim(),
-        cantidad: Number(cantidad) || 1,
-        imagen: imagenSolicitante || null,
-        agregado_por: profile.id,
-      });
-      setProducto('');
-      setCantidad(1);
-      setImagenSolicitante(null);
-      await load();
-      onChanged();
-      await log('Agregó producto', `${producto.trim()} (cant. ${cantidad}) en #${c.folio}`);
-    } catch (ex) {
-      setErr(ex.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const addItemCotizador = async (patch) => {
     await api.post('cotizacion_items', {
@@ -350,14 +275,16 @@ export default function CotizacionDetail({
   };
 
   const changeEstado = async (estado) => {
+    if (onTouch) onTouch(id);
     await api.patch(`cotizaciones?id=eq.${id}`, { estado });
     await load();
     onChanged();
     await log('Cambió estado', `#${c.folio} → ${estado}`);
   };
 
-  const saveNotas = async (notas_generales) => {
-    await api.patch(`cotizaciones?id=eq.${id}`, { notas_generales });
+  const saveNotas = async (notas_generales, imagen_notas) => {
+    if (onTouch) onTouch(id);
+    await api.patch(`cotizaciones?id=eq.${id}`, { notas_generales, imagen_notas: imagen_notas || null });
     onChanged();
   };
 
@@ -390,23 +317,22 @@ export default function CotizacionDetail({
         </div>
         <StatusStepper estado={c.estado} />
 
-        {isCotizador && (
-          <div className="row" style={{ marginTop: 12 }}>
-            {ESTADOS.map((e) => (
-              <button
-                key={e.key}
-                className={`btn btn-sm ${e.key === c.estado ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => changeEstado(e.key)}
-              >
-                {e.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Ambos lados pueden mover el estado del encargo. */}
+        <div className="row" style={{ marginTop: 12 }}>
+          {ESTADOS.map((e) => (
+            <button
+              key={e.key}
+              className={`btn btn-sm ${e.key === c.estado ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => changeEstado(e.key)}
+            >
+              {e.label}
+            </button>
+          ))}
+        </div>
 
         <div className="divider" />
         <div className="section-label">{isSolicitante ? 'Productos a cotizar (tu lista)' : 'Productos que pidió Ocampo'}</div>
-        <NotasGenerales value={c.notas_generales || ''} onSave={saveNotas} isSolicitante={isSolicitante} />
+        <NotasGenerales value={c.notas_generales || ''} imagen={c.imagen_notas || null} onSave={saveNotas} isSolicitante={isSolicitante} />
 
         <div className="divider" />
         <div className="section-label">Productos cotizados ({(c.cotizacion_items || []).length})</div>
@@ -454,11 +380,7 @@ export default function CotizacionDetail({
                 <tr key={it.id}>
                   <td>
                     {it.imagen && (
-                      <img
-                        src={it.imagen}
-                        alt={it.producto}
-                        style={{ maxWidth: 46, maxHeight: 46, borderRadius: 6, display: 'block', marginBottom: 4 }}
-                      />
+                      <ImageThumb src={it.imagen} alt={it.producto} size={46} style={{ marginBottom: 4 }} />
                     )}
                     {it.producto}
                     {it.descripcion && <div className="item-notas">{it.descripcion}</div>}
@@ -512,34 +434,6 @@ export default function CotizacionDetail({
                 onSave={addItemCotizador}
               />
             )}
-          </React.Fragment>
-        )}
-
-        {isSolicitante && (
-          <React.Fragment>
-            <div className="divider" />
-            <div className="section-label">Agregar producto suelto (opcional)</div>
-            <p className="hint" style={{ marginTop: -6, marginBottom: 10 }}>
-              Si prefieres, puedes también usar la lista de "Productos a cotizar" de arriba en vez de esto.
-            </p>
-            <form onSubmit={addItemSolicitante}>
-              <div className="row">
-                <div className="field" style={{ flex: 2 }}>
-                  <label>Producto</label>
-                  <input value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Fajas de acero 2 pulg." />
-                </div>
-                <div className="field">
-                  <label>Cantidad</label>
-                  <input type="number" min="0" step="any" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
-                </div>
-              </div>
-              <div className="row" style={{ marginBottom: 14 }}>
-                <ImagenInput value={imagenSolicitante} onChange={setImagenSolicitante} />
-              </div>
-              <button className="btn btn-primary" disabled={busy || !producto.trim()}>
-                {busy ? 'Agregando…' : 'Agregar producto'}
-              </button>
-            </form>
           </React.Fragment>
         )}
       </div>

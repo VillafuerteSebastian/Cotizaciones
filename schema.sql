@@ -94,12 +94,14 @@ create table if not exists public.cotizaciones (
   creado_por uuid references public.profiles(id),
   estado public.estado_cotizacion not null default 'cotizacion',
   notas_generales text,
+  imagen_notas text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 -- columnas nuevas si ya tenías la tabla de la v1:
 alter table public.cotizaciones add column if not exists escuela text not null default '';
 alter table public.cotizaciones add column if not exists solicitante_trabajador_id uuid references public.trabajadores_ocampo(id);
+alter table public.cotizaciones add column if not exists imagen_notas text;
 
 -- ---------- Items de la cotización (productos) ----------
 create table if not exists public.cotizacion_items (
@@ -194,16 +196,31 @@ create trigger trg_check_item_update
 before update on public.cotizacion_items
 for each row execute function public.check_item_update();
 
--- Solo Cyber (cotizador) puede cambiar el estado del encargo.
-create or replace function public.check_cotizacion_update()
+-- Solo Cyber (cotizador) puede agregar productos a una cotización.
+-- Ocampo pide lo que necesita en el campo de notas/lista (notas_generales).
+create or replace function public.check_item_insert()
 returns trigger as $$
 declare
   urole public.user_role;
 begin
   select role into urole from public.profiles where id = auth.uid();
-  if urole = 'solicitante' and new.estado is distinct from old.estado then
-    raise exception 'Solo Cyber puede cambiar el estado';
+  if urole = 'solicitante' then
+    raise exception 'Ocampo no puede agregar productos directamente a la cotización';
   end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_check_item_insert on public.cotizacion_items;
+create trigger trg_check_item_insert
+before insert on public.cotizacion_items
+for each row execute function public.check_item_insert();
+
+-- Cambio de estado del encargo: antes era exclusivo de Cyber; ahora
+-- ambos lados (Cyber y Ocampo) pueden moverlo entre columnas del tablero.
+create or replace function public.check_cotizacion_update()
+returns trigger as $$
+begin
   return new;
 end;
 $$ language plpgsql security definer;

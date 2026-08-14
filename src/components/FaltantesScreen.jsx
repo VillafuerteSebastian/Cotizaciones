@@ -6,14 +6,14 @@ import Pager, { usePager } from './Pager.jsx';
 function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
   const { pageItems, page, setPage, totalPages } = usePager(items, 10);
   return (
-    <div style={{ marginBottom: 26 }}>
+    <div className="cat-card" style={{ marginBottom: 0 }}>
       <div className="section-label">
         {titulo} ({items.length})
       </div>
       {items.length === 0 ? (
         <div className="empty-col">{vacio}</div>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap table-excel">
         <table>
           <thead>
             <tr>
@@ -150,8 +150,10 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
         </form>
       </div>
 
-      <TablaFaltantes titulo="Pendientes" items={pendientes} onToggle={toggleResuelto} onDelete={del} vacio="Nada pendiente 🎉" />
-      <TablaFaltantes titulo="Resueltos" items={resueltos} onToggle={toggleResuelto} onDelete={del} vacio="Aún no hay nada resuelto." />
+      <div className="parallel-grid">
+        <TablaFaltantes titulo="Pendientes" items={pendientes} onToggle={toggleResuelto} onDelete={del} vacio="Nada pendiente 🎉" />
+        <TablaFaltantes titulo="Resueltos" items={resueltos} onToggle={toggleResuelto} onDelete={del} vacio="Aún no hay nada resuelto." />
+      </div>
     </div>
   );
 }

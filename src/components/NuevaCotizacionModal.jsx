@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
+import ImagenInput from './ImagenInput.jsx';
 
 export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSugeridas, onClose, onCreated }) {
   const isCotizador = profile.role === 'cotizador';
   const [titulo, setTitulo] = useState('');
   const [escuela, setEscuela] = useState('');
   const [productos, setProductos] = useState('');
+  const [imagenNotas, setImagenNotas] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -33,6 +35,7 @@ export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSu
         solicitante_nombre: activeWorker.nombre,
         creado_por: profile.id,
         notas_generales: productos.trim() || null,
+        imagen_notas: imagenNotas || null,
       };
       const created = await api.post('cotizaciones', payload);
       onCreated(created[0].id, `${escuela.trim()} — ${titulo.trim()}`);
@@ -94,6 +97,13 @@ export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSu
               style={{ minHeight: 110 }}
             />
             {!isCotizador && <p className="hint">Cyber los verá aquí y agregará cada uno con precio, proveedor y demás datos.</p>}
+          </div>
+          <div className="field">
+            <ImagenInput
+              value={imagenNotas}
+              onChange={setImagenNotas}
+              label="Foto (opcional, ej. captura de Excel con la lista)"
+            />
           </div>
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? 'Creando…' : 'Crear cotización'}

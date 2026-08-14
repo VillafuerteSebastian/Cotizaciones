@@ -1535,6 +1535,296 @@ tbody tr:last-child td {
 
 
 /* =========================================================
+   ACTIVIDAD — CAJA + CALENDARIO
+   ========================================================= */
+
+.caja-layout {
+
+  display: grid;
+
+  grid-template-columns: minmax(270px, 330px) 1fr;
+
+  align-items: start;
+
+  gap: 20px;
+
+  margin-bottom: 30px;
+}
+
+.mini-cal {
+
+  background: #fff;
+
+  border: 1px solid var(--line);
+
+  border-radius: var(--radius-md);
+
+  padding: 16px 16px 12px;
+}
+
+.mini-cal-head {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin-bottom: 14px;
+}
+
+.mini-cal-head .label {
+
+  color: var(--ink);
+
+  font-size: 13.5px;
+  font-weight: 750;
+
+  text-transform: capitalize;
+}
+
+.mini-cal-nav {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 4px;
+}
+
+.mini-cal-nav button {
+
+  width: 26px;
+  height: 26px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  color: #475467;
+
+  background: #fff;
+
+  border: 1px solid var(--line-dark);
+
+  border-radius: 7px;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  line-height: 1;
+}
+
+.mini-cal-nav button:hover:not(:disabled) {
+
+  color: var(--primary);
+
+  background: var(--blue-50);
+
+  border-color: var(--blue-200);
+}
+
+.mini-cal-grid {
+
+  display: grid;
+
+  grid-template-columns: repeat(7, 1fr);
+
+  gap: 4px;
+}
+
+.mini-cal-dow {
+
+  text-align: center;
+
+  padding-bottom: 5px;
+
+  color: var(--ink-muted);
+
+  font-size: 9.5px;
+  font-weight: 750;
+
+  text-transform: uppercase;
+
+  letter-spacing: .05em;
+}
+
+.mini-cal-cell {
+
+  min-height: 52px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+
+  padding: 5px 6px;
+
+  background: #F8FAFC;
+
+  border: 1px solid transparent;
+
+  border-radius: 8px;
+
+  transition:
+    border-color .12s ease,
+    background .12s ease,
+    box-shadow .12s ease;
+}
+
+.mini-cal-cell.empty {
+
+  background: transparent;
+}
+
+.mini-cal-cell.has-data {
+
+  cursor: pointer;
+
+  background: #fff;
+
+  border-color: var(--line);
+}
+
+.mini-cal-cell.has-data:hover {
+
+  border-color: var(--blue-300);
+
+  box-shadow: var(--shadow-xs);
+}
+
+.mini-cal-cell.today {
+
+  border-color: var(--blue-200);
+}
+
+.mini-cal-cell.selected {
+
+  border-color: var(--primary);
+
+  background: var(--blue-50);
+
+  box-shadow: 0 0 0 2px rgba(0, 74, 173, .14) inset;
+}
+
+.mini-cal-cell .num {
+
+  color: var(--ink-soft);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mini-cal-cell.has-data .num {
+  color: var(--ink);
+}
+
+.mini-cal-cell .amt {
+
+  color: var(--primary);
+
+  font-size: 10px;
+  font-weight: 750;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.mini-cal-cell .cnt {
+
+  color: var(--ink-muted);
+
+  font-size: 9px;
+}
+
+.mini-cal-foot {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin-top: 14px;
+
+  padding-top: 12px;
+
+  border-top: 1px solid var(--line);
+}
+
+
+/* =========================================================
+   PARALLEL COLUMN GROUPS
+   ========================================================= */
+
+.parallel-grid {
+
+  display: grid;
+
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+
+  align-items: start;
+
+  gap: 18px;
+}
+
+.cat-card {
+
+  display: flex;
+
+  flex-direction: column;
+
+  min-width: 0;
+}
+
+.cat-card .table-wrap {
+
+  max-height: 420px;
+
+  overflow-y: auto;
+}
+
+
+/* =========================================================
+   EXCEL-STYLE TABLE MODIFIER
+   ========================================================= */
+
+.table-excel th,
+.table-excel td {
+
+  border: 1px solid var(--line);
+}
+
+.table-excel th {
+
+  background: #EDF1F7;
+}
+
+.table-excel tbody tr:nth-child(even) {
+
+  background: #FAFBFD;
+}
+
+.table-excel td.num,
+.table-excel th.num {
+
+  text-align: right;
+
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* =========================================================
    HELPERS
    ========================================================= */
 

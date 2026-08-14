@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api, logActividad } from '../supabaseClient.js';
+import { estadoInfo } from '../utils.js';
+import { soportaNotificaciones, permisoNotificaciones, pedirPermisoNotificaciones, mostrarNotificacion } from '../notify.js';
 import Board from './Board.jsx';
 import ProveedoresScreen from './ProveedoresScreen.jsx';
 import TrabajadoresScreen from './TrabajadoresScreen.jsx';
@@ -20,11 +22,53 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
   const [openId, setOpenId] = useState(null);
   const [showNueva, setShowNueva] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notifPermiso, setNotifPermiso] = useState(permisoNotificaciones());
+
+  // Para avisar por notificación de escritorio cuando la otra parte hace un
+  // cambio: si Ocampo agrega/actualiza una cotización, avisa a Cyber, y si
+  // Cyber la actualiza, avisa a Ocampo. No se avisa a quien hizo el cambio
+  // (se suprime por unos segundos en su propia sesión) ni en la primera carga.
+  const snapshotRef = useRef(new Map()); // id -> { estado, updated_at }
+  const primerCargaRef = useRef(false);
+  const recienTocadosRef = useRef(new Map()); // id -> expira (timestamp)
+
+  const marcarRecienTocado = useCallback((id) => {
+    if (!id) return;
+    recienTocadosRef.current.set(id, Date.now() + 8000);
+  }, []);
 
   const loadCotizaciones = useCallback(async () => {
     const data = await api.get(
       'cotizaciones?select=*,cotizacion_items(*,proveedor:proveedores(nombre),cotizado:trabajadores_cyber(nombre))&order=created_at.desc'
     );
+
+    if (primerCargaRef.current) {
+      const prev = snapshotRef.current;
+      const ahora = Date.now();
+      for (const c of data) {
+        const expiraTocado = recienTocadosRef.current.get(c.id);
+        const esPropio = expiraTocado && expiraTocado > ahora;
+        if (esPropio) continue;
+        const antes = prev.get(c.id);
+        if (!antes) {
+          mostrarNotificacion('Nueva cotización', {
+            body: `#${c.folio} · ${c.escuela} — ${c.titulo}`,
+            tag: `cotizacion-${c.id}`,
+          });
+        } else if (antes.estado !== c.estado || antes.updated_at !== c.updated_at) {
+          mostrarNotificacion('Cotización actualizada', {
+            body: `#${c.folio} · ${c.escuela} → ${estadoInfo(c.estado).label}`,
+            tag: `cotizacion-${c.id}`,
+          });
+        }
+      }
+    }
+
+    const snap = new Map();
+    for (const c of data) snap.set(c.id, { estado: c.estado, updated_at: c.updated_at });
+    snapshotRef.current = snap;
+    primerCargaRef.current = true;
+
     setCotizaciones(data);
   }, []);
   const loadProveedores = useCallback(async () => {
@@ -75,8 +119,22 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     return () => clearInterval(interval);
   }, [tab, isCotizador, loadActividad]);
 
+  // El tablero de cotizaciones se recarga solo cada pocos segundos (sin
+  // importar la pestaña activa), para que cualquier cambio hecho por la
+  // otra persona/dispositivo aparezca sin tener que apretar F5.
+  useEffect(() => {
+    const interval = setInterval(loadCotizaciones, 12000);
+    return () => clearInterval(interval);
+  }, [loadCotizaciones]);
+
+  const activarNotificaciones = async () => {
+    const resultado = await pedirPermisoNotificaciones();
+    setNotifPermiso(resultado);
+  };
+
   const moverEstado = async (cotizacionId, nuevoEstado, cotizacion) => {
     try {
+      marcarRecienTocado(cotizacionId);
       await api.patch(`cotizaciones?id=eq.${cotizacionId}`, { estado: nuevoEstado });
       await loadCotizaciones();
       await log('Cambió estado', `#${cotizacion.folio} → ${nuevoEstado} (arrastrado)`);
@@ -126,6 +184,20 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
         <div className="sidebar-footer">
           <div className="who">{activeWorker ? activeWorker.nombre : profile.nombre}</div>
           <div className="who-role">{isCotizador ? 'Cyber' : 'Ocampo'}</div>
+          {soportaNotificaciones() && notifPermiso === 'default' && (
+            <button
+              className="btn btn-ghost btn-sm btn-block"
+              style={{ marginBottom: 6 }}
+              onClick={activarNotificaciones}
+            >
+              🔔 Activar notificaciones
+            </button>
+          )}
+          {soportaNotificaciones() && notifPermiso === 'denied' && (
+            <p className="hint" style={{ margin: '0 0 6px', fontSize: 10.5 }}>
+              Notificaciones bloqueadas por el navegador. Actívalas en la configuración del sitio si las quieres.
+            </p>
+          )}
           <button className="btn btn-ghost btn-sm btn-block" style={{ marginBottom: 6 }} onClick={onChangeWorker}>
             Cambiar persona
           </button>
@@ -144,7 +216,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
                 + Nueva cotización
               </button>
             </div>
-            {loading ? <div className="loading">Cargando…</div> : <Board cotizaciones={cotizaciones} onOpen={setOpenId} canDrag={isCotizador} onMoveEstado={moverEstado} />}
+            {loading ? <div className="loading">Cargando…</div> : <Board cotizaciones={cotizaciones} onOpen={setOpenId} canDrag={true} onMoveEstado={moverEstado} />}
           </React.Fragment>
         )}
         {tab === 'proveedores' && isCotizador && (
@@ -197,6 +269,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           trabajadoresCyber={trabajadoresCyber}
           onClose={() => setOpenId(null)}
           onChanged={loadCotizaciones}
+          onTouch={marcarRecienTocado}
           reloadProveedores={loadProveedores}
           log={log}
         />
@@ -209,6 +282,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           onClose={() => setShowNueva(false)}
           onCreated={async (id, detalle) => {
             setShowNueva(false);
+            marcarRecienTocado(id);
             await loadCotizaciones();
             await log('Nueva cotización', detalle);
             setOpenId(id);
