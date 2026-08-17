@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { api } from '../supabaseClient.js';
 import { fmtDateTime } from '../utils.js';
 import Pager, { usePager } from './Pager.jsx';
+import { useUI } from './UIProvider.jsx';
 
 function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
   const { pageItems, page, setPage, totalPages } = usePager(items, 10);
@@ -53,6 +54,7 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
 }
 
 export default function FaltantesScreen({ profile, activeWorker, faltantes, reload, log }) {
+  const { confirmar } = useUI();
   const [producto, setProducto] = useState('');
   const [notas, setNotas] = useState('');
   const [busy, setBusy] = useState(false);
@@ -101,7 +103,8 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
   };
 
   const del = async (f) => {
-    if (!window.confirm(`¿Eliminar "${f.producto}" de la lista de faltantes?`)) return;
+    const ok = await confirmar(`¿Eliminar "${f.producto}" de la lista de faltantes?`, { confirmLabel: 'Eliminar' });
+    if (!ok) return;
     await api.del(`productos_faltantes?id=eq.${f.id}`);
     await log('Eliminó faltante', f.producto);
     await reload();

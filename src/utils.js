@@ -6,7 +6,21 @@ export const ESTADOS = [
   { key: 'entregado', label: 'Entregado', color: 'var(--c-entregado)' },
 ];
 
-export const estadoInfo = (k) => ESTADOS.find((e) => e.key === k) || ESTADOS[0];
+// Estado especial fuera del flujo lineal: una cotización cancelada no avanza
+// más, así que no forma parte del stepper de progreso.
+export const CANCELADA = { key: 'cancelada', label: 'Cancelada', color: 'var(--danger)' };
+
+export const estadoInfo = (k) => ESTADOS.find((e) => e.key === k) || (k === CANCELADA.key ? CANCELADA : ESTADOS[0]);
+
+// Flujo simplificado para apartados/pedidos hechos directamente en tienda
+// (solo Cyber los ve): pedido -> llegó a tienda -> entregado al cliente.
+export const ESTADOS_APARTADO = [
+  { key: 'pedido', label: 'Pedido', color: '#F59E0B' },
+  { key: 'en_tienda', label: 'Llegó a tienda', color: '#7C3AED' },
+  { key: 'entregado', label: 'Entregado', color: '#16A34A' },
+];
+
+export const estadoApartadoInfo = (k) => ESTADOS_APARTADO.find((e) => e.key === k) || ESTADOS_APARTADO[0];
 
 export const fmtMoney = (n) => {
   if (n === null || n === undefined || n === '') return '—';

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { resizeImageToDataUrl } from '../imageUtils.js';
 import { ImageThumb } from './ImageViewer.jsx';
+import { useUI } from './UIProvider.jsx';
 
 // Campo para adjuntar una imagen: se puede pegar (Ctrl+V, útil para
 // capturas de pantalla de Excel u otras fuentes) o elegir un archivo.
 export default function ImagenInput({ value, onChange, label = 'Foto (opcional)', quitarLabel = 'Quitar' }) {
+  const { toast } = useUI();
   const [busy, setBusy] = useState(false);
 
   const handleFile = async (file) => {
@@ -14,7 +16,7 @@ export default function ImagenInput({ value, onChange, label = 'Foto (opcional)'
       const dataUrl = await resizeImageToDataUrl(file);
       onChange(dataUrl);
     } catch (ex) {
-      alert(ex.message);
+      toast(ex.message, 'error');
     } finally {
       setBusy(false);
     }

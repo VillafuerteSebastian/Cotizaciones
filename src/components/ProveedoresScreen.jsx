@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
+import { useUI } from './UIProvider.jsx';
 
 function ProveedorEditForm({ p, onCancel, onSaved }) {
+  const { toast } = useUI();
   const [nombre, setNombre] = useState(p.nombre);
   const [contacto, setContacto] = useState(p.contacto || '');
   const [telefono, setTelefono] = useState(p.telefono || '');
@@ -22,7 +24,7 @@ function ProveedorEditForm({ p, onCancel, onSaved }) {
       });
       await onSaved();
     } catch (ex) {
-      alert('No se pudo guardar: ' + ex.message);
+      toast('No se pudo guardar: ' + ex.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -67,6 +69,7 @@ function ProveedorEditForm({ p, onCancel, onSaved }) {
 }
 
 export default function ProveedoresScreen({ activeWorker, proveedores, reload }) {
+  const { toast, confirmar } = useUI();
   const isAdmin = Boolean(activeWorker && activeWorker.es_administrador);
   const [nombre, setNombre] = useState('');
   const [contacto, setContacto] = useState('');
@@ -85,19 +88,23 @@ export default function ProveedoresScreen({ activeWorker, proveedores, reload })
       setTelefono('');
       await reload();
     } catch (ex) {
-      alert('No se pudo agregar: ' + ex.message);
+      toast('No se pudo agregar: ' + ex.message, 'error');
     } finally {
       setBusy(false);
     }
   };
 
   const eliminar = async (p) => {
-    if (!window.confirm(`¿Eliminar al proveedor "${p.nombre}"? Los productos que lo tenían asignado quedarán sin proveedor.`)) return;
+    const ok = await confirmar(`¿Eliminar al proveedor "${p.nombre}"?`, {
+      detail: 'Los productos que lo tenían asignado quedarán sin proveedor.',
+      confirmLabel: 'Eliminar',
+    });
+    if (!ok) return;
     try {
       await api.del(`proveedores?id=eq.${p.id}`);
       await reload();
     } catch (ex) {
-      alert('No se pudo eliminar: ' + ex.message);
+      toast('No se pudo eliminar: ' + ex.message, 'error');
     }
   };
 

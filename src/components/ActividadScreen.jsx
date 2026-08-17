@@ -18,6 +18,11 @@ const CATEGORIAS = [
     match: (a) => ['Agregó faltante', 'Reportó faltante otra vez', 'Resolvió faltante', 'Reabrió faltante', 'Eliminó faltante'].includes(a),
   },
   {
+    key: 'apartados',
+    titulo: '🛍️ Apartados en tienda',
+    match: (a) => ['Agregó apartado', 'Cambió estado de apartado', 'Eliminó apartado'].includes(a),
+  },
+  {
     key: 'equipo',
     titulo: '👥 Equipo',
     match: (a) =>

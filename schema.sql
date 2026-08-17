@@ -15,6 +15,17 @@ do $$ begin
     ('cotizacion', 'pedido', 'en_camino', 'en_tienda', 'entregado');
 exception when duplicate_object then null; end $$;
 
+-- Estado extra para cotizaciones que no se llegaron a pedir o se
+-- cancelaron, así no se quedan abiertas en el tablero indefinidamente.
+alter type public.estado_cotizacion add value if not exists 'cancelada';
+
+-- Flujo simple para apartados/pedidos hechos directamente en tienda
+-- (no pasan por todo el proceso de cotización): pedido -> llegó a
+-- tienda -> entregado al cliente. Solo Cyber los usa.
+do $$ begin
+  create type public.estado_apartado as enum ('pedido', 'en_tienda', 'entregado');
+exception when duplicate_object then null; end $$;
+
 -- ---------- Perfiles (uno por LOGIN; aquí solo hay 2: Cyber y Ocampo) ----------
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -136,6 +147,26 @@ create table if not exists public.productos_faltantes (
 alter table public.productos_faltantes add column if not exists veces_reportado integer not null default 1;
 alter table public.productos_faltantes add column if not exists ultima_vez timestamptz not null default now();
 
+-- ---------- Apartados/pedidos hechos directamente en tienda (solo Cyber) ----------
+create table if not exists public.apartados (
+  id uuid primary key default gen_random_uuid(),
+  folio serial,
+  numero_apartado text,
+  cliente_nombre text not null,
+  telefono text,
+  producto text not null,
+  cantidad numeric not null default 1,
+  precio numeric,
+  notas text,
+  estado public.estado_apartado not null default 'pedido',
+  registrado_por_trabajador_id uuid references public.trabajadores_cyber(id),
+  creado_por uuid references public.profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- columna nueva si ya tenías la tabla creada antes de que existiera este campo:
+alter table public.apartados add column if not exists numero_apartado text;
+
 -- ---------- Bitácora de actividad (control: quién hizo qué) ----------
 create table if not exists public.actividad (
   id uuid primary key default gen_random_uuid(),
@@ -159,6 +190,11 @@ $$ language plpgsql;
 drop trigger if exists trg_cotizaciones_updated on public.cotizaciones;
 create trigger trg_cotizaciones_updated
 before update on public.cotizaciones
+for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_apartados_updated on public.apartados;
+create trigger trg_apartados_updated
+before update on public.apartados
 for each row execute function public.set_updated_at();
 
 -- ---------- Helper: rol del usuario autenticado ----------
@@ -238,6 +274,7 @@ alter table public.trabajadores_ocampo enable row level security;
 alter table public.cotizaciones enable row level security;
 alter table public.cotizacion_items enable row level security;
 alter table public.productos_faltantes enable row level security;
+alter table public.apartados enable row level security;
 alter table public.actividad enable row level security;
 
 drop policy if exists "profiles_select" on public.profiles;
@@ -303,6 +340,11 @@ create policy "items_all" on public.cotizacion_items
 -- Faltantes en tienda: SOLO Cyber.
 drop policy if exists "faltantes_all" on public.productos_faltantes;
 create policy "faltantes_all" on public.productos_faltantes
+  for all using (public.has_role('cotizador')) with check (public.has_role('cotizador'));
+
+-- Apartados en tienda: SOLO Cyber.
+drop policy if exists "apartados_all" on public.apartados;
+create policy "apartados_all" on public.apartados
   for all using (public.has_role('cotizador')) with check (public.has_role('cotizador'));
 
 -- Bitácora: ambos roles pueden registrar acciones, solo Cyber la lee.

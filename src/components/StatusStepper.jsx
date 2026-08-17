@@ -1,7 +1,14 @@
 import React from 'react';
-import { ESTADOS, estadoInfo } from '../utils.js';
+import { ESTADOS, CANCELADA, estadoInfo } from '../utils.js';
 
 export function StatusStepper({ estado }) {
+  if (estado === CANCELADA.key) {
+    return (
+      <div className="stepper stepper-cancelada">
+        <span className="cancelada-pill">✕ Cancelada</span>
+      </div>
+    );
+  }
   const idx = ESTADOS.findIndex((e) => e.key === estado);
   return (
     <div className="stepper">

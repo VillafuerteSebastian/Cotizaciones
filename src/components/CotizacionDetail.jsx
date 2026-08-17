@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../supabaseClient.js';
-import { ESTADOS, fmtMoney, fmtDateTime, itemsTotal } from '../utils.js';
+import { ESTADOS, CANCELADA, fmtMoney, fmtDateTime, itemsTotal } from '../utils.js';
 import { StatusStepper, Badge } from './StatusStepper.jsx';
 import ImagenInput from './ImagenInput.jsx';
 import { ImageThumb } from './ImageViewer.jsx';
+import { useUI } from './UIProvider.jsx';
 
 function NotasGenerales({ value, imagen, onSave, isSolicitante }) {
   const [v, setV] = useState(value);
@@ -229,6 +230,7 @@ export default function CotizacionDetail({
   const [showAddCotizador, setShowAddCotizador] = useState(false);
   const isCotizador = profile.role === 'cotizador';
   const isSolicitante = profile.role === 'solicitante';
+  const { confirmar } = useUI();
 
   const load = useCallback(async () => {
     const data = await api.get(
@@ -267,7 +269,8 @@ export default function CotizacionDetail({
   };
 
   const deleteItem = async (itemId, itemLabel) => {
-    if (!window.confirm(`¿Eliminar "${itemLabel}" de esta cotización?`)) return;
+    const ok = await confirmar(`¿Eliminar "${itemLabel}" de esta cotización?`, { confirmLabel: 'Eliminar' });
+    if (!ok) return;
     await api.del(`cotizacion_items?id=eq.${itemId}`);
     await load();
     onChanged();
@@ -318,7 +321,7 @@ export default function CotizacionDetail({
         <StatusStepper estado={c.estado} />
 
         {/* Ambos lados pueden mover el estado del encargo. */}
-        <div className="row" style={{ marginTop: 12 }}>
+        <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
           {ESTADOS.map((e) => (
             <button
               key={e.key}
@@ -328,6 +331,21 @@ export default function CotizacionDetail({
               {e.label}
             </button>
           ))}
+        </div>
+
+        {/* La cancelación es aparte del flujo normal: es para cuando el
+            encargo no se llegó a pedir o se canceló, y así no se queda
+            "abierto" indefinidamente en una de las columnas activas. */}
+        <div className="row" style={{ marginTop: 8 }}>
+          {c.estado === CANCELADA.key ? (
+            <button className="btn btn-ghost btn-sm" onClick={() => changeEstado(ESTADOS[0].key)}>
+              ↺ Reabrir cotización
+            </button>
+          ) : (
+            <button className="btn btn-danger btn-sm" onClick={() => changeEstado(CANCELADA.key)}>
+              ✕ Cancelar cotización
+            </button>
+          )}
         </div>
 
         <div className="divider" />

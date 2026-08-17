@@ -13,8 +13,10 @@ import SetupScreen from './components/SetupScreen.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
 import QuienEresScreen from './components/QuienEresScreen.jsx';
 import AppShell from './components/AppShell.jsx';
+import { useUI } from './components/UIProvider.jsx';
 
 export default function App() {
+  const { toast } = useUI();
   const [phase, setPhase] = useState('loading'); // loading | setup | login | quien-eres | app
   const [profile, setProfile] = useState(null);
   const [activeWorker, setActiveWorkerState] = useState(null);
@@ -63,7 +65,7 @@ export default function App() {
             const p = await fetchProfile(user.id);
             enterAfterLogin(p);
           } catch (ex) {
-            alert(ex.message);
+            toast(ex.message, 'error');
           }
         }}
       />

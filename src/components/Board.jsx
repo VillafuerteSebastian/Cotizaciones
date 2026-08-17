@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { ESTADOS, fmtMoney, fmtDateTime, itemsTotal } from '../utils.js';
+import { ESTADOS, CANCELADA, fmtMoney, fmtDateTime, itemsTotal } from '../utils.js';
 import { StatusStepper } from './StatusStepper.jsx';
+
+const COLUMNAS = [...ESTADOS, CANCELADA];
 
 function CotizacionCard({ c, onOpen, draggable, onDragStart, onDragEnd, dragging }) {
   const total = itemsTotal(c.cotizacion_items);
@@ -57,12 +59,13 @@ export default function Board({ cotizaciones, onOpen, canDrag, onMoveEstado }) {
 
   return (
     <div className="board">
-      {ESTADOS.map((estado) => {
+      {COLUMNAS.map((estado) => {
         const list = cotizaciones.filter((c) => c.estado === estado.key);
         const isOver = overCol === estado.key;
+        const esCancelada = estado.key === CANCELADA.key;
         return (
           <div
-            className="col"
+            className={`col${esCancelada ? ' col-cancelada' : ''}`}
             key={estado.key}
             onDragOver={
               canDrag

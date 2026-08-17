@@ -159,6 +159,13 @@ html {
 body {
   min-height: 100vh;
 
+  /* Salvavidas general: ningún elemento debería forzar scroll horizontal
+     de toda la página; si algo se pasa de ancho, se recorta en vez de
+     empujar el layout. El scroll horizontal intencional (tablero,
+     tablas) sigue funcionando porque vive en sus propios contenedores
+     con overflow-x: auto. */
+  overflow-x: hidden;
+
   background: var(--background);
 
   color: var(--ink);
@@ -350,6 +357,7 @@ button:disabled {
    ========================================================= */
 
 .field {
+  min-width: 0;
   margin-bottom: 17px;
 }
 
@@ -947,6 +955,33 @@ button:disabled {
     var(--sc);
 }
 
+.stepper-cancelada {
+
+  padding: 2px 0;
+}
+
+.cancelada-pill {
+
+  display: inline-flex;
+
+  align-items: center;
+
+  padding: 4px 10px;
+
+  color: var(--danger);
+
+  background: var(--danger-soft);
+
+  border: 1px solid #FECACA;
+
+  border-radius: 20px;
+
+  font-size: 11px;
+  font-weight: 750;
+
+  letter-spacing: .02em;
+}
+
 
 /* =========================================================
    KANBAN
@@ -1010,6 +1045,22 @@ button:disabled {
 
   border-color:
     #D8E0EB;
+}
+
+/* Columna de cotizaciones canceladas: mismo comportamiento, look más
+   apagado para que se note que ya no está "activa" en el flujo. */
+.col-cancelada {
+
+  background: #FBF3F3;
+
+  border-color: #F3D8D8;
+}
+
+.col-cancelada:hover {
+
+  background: #FAEFEF;
+
+  border-color: #EFC9C9;
 }
 
 
@@ -1551,6 +1602,16 @@ tbody tr:last-child td {
   margin-bottom: 30px;
 }
 
+/* Por debajo de este ancho el formulario + calendario ya no caben
+   lado a lado sin forzar scroll horizontal de toda la página, así
+   que se apilan en una sola columna. */
+@media (max-width: 860px) {
+
+  .caja-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .mini-cal {
 
   background: #fff;
@@ -1771,11 +1832,22 @@ tbody tr:last-child td {
 
   display: grid;
 
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 
   align-items: start;
 
   gap: 18px;
+}
+
+/* Salvavidas para pantallas muy angostas: minmax(280px,1fr) por sí solo
+   ya colapsa a 1 columna cuando no cabe, pero en teléfonos pequeños
+   (< ~330px de ancho útil) ese mínimo de 280px puede seguir sin caber
+   por el padding del contenedor, así que se fuerza explícitamente. */
+@media (max-width: 420px) {
+
+  .parallel-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .cat-card {
@@ -1821,6 +1893,152 @@ tbody tr:last-child td {
   text-align: right;
 
   font-variant-numeric: tabular-nums;
+}
+
+
+/* =========================================================
+   TOASTS Y CONFIRMACIÓN (reemplazan alert()/confirm() nativos)
+   ========================================================= */
+
+.toast-stack {
+
+  position: fixed;
+
+  right: 18px;
+  bottom: 18px;
+
+  z-index: 80;
+
+  display: flex;
+
+  flex-direction: column-reverse;
+
+  gap: 10px;
+
+  max-width: min(380px, calc(100vw - 32px));
+
+  pointer-events: none;
+}
+
+.toast {
+
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: 10px;
+
+  padding: 13px 14px;
+
+  color: #fff;
+
+  background: var(--ink);
+
+  border-radius: var(--radius-md);
+
+  box-shadow: var(--shadow-lg);
+
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.4;
+
+  cursor: pointer;
+
+  pointer-events: auto;
+
+  animation: toast-enter .22s ease;
+}
+
+@keyframes toast-enter {
+
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-info {
+  background: var(--sidebar);
+}
+
+.toast-success {
+  background: #0F7A38;
+}
+
+.toast-error {
+  background: var(--danger);
+}
+
+.toast-icon {
+
+  flex: none;
+
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.toast-msg {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.toast-x {
+
+  flex: none;
+
+  padding: 0 0 0 4px;
+
+  color: rgba(255,255,255,.75);
+
+  background: transparent;
+
+  border: 0;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.toast-x:hover {
+  color: #fff;
+}
+
+.confirm-overlay {
+  z-index: 90;
+}
+
+.confirm-modal {
+
+  max-width: 380px;
+
+  padding: 26px;
+}
+
+.confirm-message {
+
+  margin: 0;
+
+  color: var(--ink);
+
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.confirm-detail {
+
+  margin: 8px 0 0;
+}
+
+.confirm-actions {
+
+  margin-top: 20px;
 }
 
 
@@ -2233,6 +2451,38 @@ textarea:focus-visible {
 
     border-radius:
       17px;
+  }
+
+  .mini-cal {
+    padding: 13px 12px 10px;
+  }
+
+  .mini-cal-cell {
+    min-height: 44px;
+    padding: 4px 4px;
+    gap: 1px;
+  }
+
+  .mini-cal-cell .amt {
+    font-size: 9px;
+  }
+
+  .mini-cal-cell .cnt {
+    display: none;
+  }
+
+  .mini-cal-foot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .parallel-grid {
+    gap: 14px;
+  }
+
+  .cat-card .table-wrap {
+    max-height: 320px;
   }
 }
 

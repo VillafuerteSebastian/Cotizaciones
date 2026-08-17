@@ -6,11 +6,14 @@ import Board from './Board.jsx';
 import ProveedoresScreen from './ProveedoresScreen.jsx';
 import TrabajadoresScreen from './TrabajadoresScreen.jsx';
 import FaltantesScreen from './FaltantesScreen.jsx';
+import ApartadosScreen from './ApartadosScreen.jsx';
 import ActividadScreen from './ActividadScreen.jsx';
 import CotizacionDetail from './CotizacionDetail.jsx';
 import NuevaCotizacionModal from './NuevaCotizacionModal.jsx';
+import { useUI } from './UIProvider.jsx';
 
 export default function AppShell({ profile, activeWorker, onChangeWorker, onLogout }) {
+  const { toast } = useUI();
   const isCotizador = profile.role === 'cotizador';
   const [tab, setTab] = useState('tablero');
   const [cotizaciones, setCotizaciones] = useState([]);
@@ -18,6 +21,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
   const [trabajadoresCyber, setTrabajadoresCyber] = useState([]);
   const [trabajadoresOcampo, setTrabajadoresOcampo] = useState([]);
   const [faltantes, setFaltantes] = useState([]);
+  const [apartados, setApartados] = useState([]);
   const [actividad, setActividad] = useState([]);
   const [openId, setOpenId] = useState(null);
   const [showNueva, setShowNueva] = useState(false);
@@ -88,6 +92,11 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     const data = await api.get('productos_faltantes?select=*&order=created_at.desc');
     setFaltantes(data);
   }, [isCotizador]);
+  const loadApartados = useCallback(async () => {
+    if (!isCotizador) return;
+    const data = await api.get('apartados?select=*&order=created_at.desc');
+    setApartados(data);
+  }, [isCotizador]);
   const loadActividad = useCallback(async () => {
     if (!isCotizador) return;
     const data = await api.get('actividad?select=*&order=created_at.desc&limit=100');
@@ -103,11 +112,20 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
         loadTrabajadoresCyber(),
         loadTrabajadoresOcampo(),
         loadFaltantes(),
+        loadApartados(),
         loadActividad(),
       ]);
       setLoading(false);
     })();
-  }, [loadCotizaciones, loadProveedores, loadTrabajadoresCyber, loadTrabajadoresOcampo, loadFaltantes, loadActividad]);
+  }, [
+    loadCotizaciones,
+    loadProveedores,
+    loadTrabajadoresCyber,
+    loadTrabajadoresOcampo,
+    loadFaltantes,
+    loadApartados,
+    loadActividad,
+  ]);
 
   // Recarga la actividad al entrar a esa pestaña, y periódicamente mientras
   // se está viendo, para reflejar cambios hechos por otras personas/sesiones
@@ -118,6 +136,15 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     const interval = setInterval(loadActividad, 15000);
     return () => clearInterval(interval);
   }, [tab, isCotizador, loadActividad]);
+
+  // Igual que actividad: mientras se está viendo la pestaña de apartados,
+  // se refresca sola para reflejar cambios de la otra sesión sin F5.
+  useEffect(() => {
+    if (tab !== 'apartados' || !isCotizador) return;
+    loadApartados();
+    const interval = setInterval(loadApartados, 15000);
+    return () => clearInterval(interval);
+  }, [tab, isCotizador, loadApartados]);
 
   // El tablero de cotizaciones se recarga solo cada pocos segundos (sin
   // importar la pestaña activa), para que cualquier cambio hecho por la
@@ -139,7 +166,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
       await loadCotizaciones();
       await log('Cambió estado', `#${cotizacion.folio} → ${nuevoEstado} (arrastrado)`);
     } catch (ex) {
-      alert('No se pudo mover: ' + ex.message);
+      toast('No se pudo mover: ' + ex.message, 'error');
     }
   };
 
@@ -174,6 +201,11 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
         {isCotizador && (
           <button className={`nav-item ${tab === 'faltantes' ? 'active' : ''}`} onClick={() => setTab('faltantes')}>
             Faltantes en tienda
+          </button>
+        )}
+        {isCotizador && (
+          <button className={`nav-item ${tab === 'apartados' ? 'active' : ''}`} onClick={() => setTab('apartados')}>
+            Apartados en tienda
           </button>
         )}
         {isCotizador && (
@@ -248,6 +280,20 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
               <h2>Faltantes en tienda</h2>
             </div>
             <FaltantesScreen profile={profile} activeWorker={activeWorker} faltantes={faltantes} reload={loadFaltantes} log={log} />
+          </React.Fragment>
+        )}
+        {tab === 'apartados' && isCotizador && (
+          <React.Fragment>
+            <div className="main-header">
+              <h2>Apartados en tienda</h2>
+            </div>
+            <ApartadosScreen
+              activeWorker={activeWorker}
+              trabajadoresCyber={trabajadoresCyber}
+              apartados={apartados}
+              reload={loadApartados}
+              log={log}
+            />
           </React.Fragment>
         )}
         {tab === 'actividad' && isCotizador && (

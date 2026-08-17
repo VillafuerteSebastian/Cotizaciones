@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
 import { hashPin } from '../pinUtils.js';
 import PinModal from './PinModal.jsx';
+import { useUI } from './UIProvider.jsx';
 
 export default function TrabajadoresScreen({ profile, activeWorker, trabajadoresCyber, trabajadoresOcampo, reload, log }) {
+  const { toast, confirmar } = useUI();
   const isCotizador = profile.role === 'cotizador';
   const tabla = isCotizador ? 'trabajadores_cyber' : 'trabajadores_ocampo';
   const lista = isCotizador ? trabajadoresCyber : trabajadoresOcampo;
@@ -22,7 +24,7 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
       setNombre('');
       await reload();
     } catch (ex) {
-      alert('No se pudo agregar: ' + ex.message);
+      toast('No se pudo agregar: ' + ex.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -34,29 +36,34 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
       if (log) await log(t.activo ? 'Desactivó persona' : 'Activó persona', t.nombre);
       await reload();
     } catch (ex) {
-      alert('No se pudo actualizar: ' + ex.message);
+      toast('No se pudo actualizar: ' + ex.message, 'error');
     }
   };
 
   const quitarAdmin = async (t) => {
-    if (!window.confirm(`¿Quitarle el rol de administrador a "${t.nombre}"?`)) return;
+    const ok = await confirmar(`¿Quitarle el rol de administrador a "${t.nombre}"?`, { confirmLabel: 'Quitar rol' });
+    if (!ok) return;
     try {
       await api.patch(`${tabla}?id=eq.${t.id}`, { es_administrador: false, pin: null });
       if (log) await log('Quitó administrador', t.nombre);
       await reload();
     } catch (ex) {
-      alert('No se pudo actualizar: ' + ex.message);
+      toast('No se pudo actualizar: ' + ex.message, 'error');
     }
   };
 
   const quitarPin = async (t) => {
-    if (!window.confirm(`¿Quitarle el PIN a "${t.nombre}"? Cualquiera podrá seleccionarlo sin PIN.`)) return;
+    const ok = await confirmar(`¿Quitarle el PIN a "${t.nombre}"?`, {
+      detail: 'Cualquiera podrá seleccionarlo sin PIN.',
+      confirmLabel: 'Quitar PIN',
+    });
+    if (!ok) return;
     try {
       await api.patch(`${tabla}?id=eq.${t.id}`, { pin: null });
       if (log) await log('Quitó PIN', t.nombre);
       await reload();
     } catch (ex) {
-      alert('No se pudo actualizar: ' + ex.message);
+      toast('No se pudo actualizar: ' + ex.message, 'error');
     }
   };
 
@@ -74,13 +81,17 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
   };
 
   const eliminar = async (t) => {
-    if (!window.confirm(`¿Eliminar a "${t.nombre}" del equipo? Esto no borra las cotizaciones ya hechas.`)) return;
+    const ok = await confirmar(`¿Eliminar a "${t.nombre}" del equipo?`, {
+      detail: 'Esto no borra las cotizaciones ya hechas.',
+      confirmLabel: 'Eliminar',
+    });
+    if (!ok) return;
     try {
       await api.del(`${tabla}?id=eq.${t.id}`);
       if (log) await log('Eliminó de equipo', t.nombre);
       await reload();
     } catch (ex) {
-      alert('No se pudo eliminar: ' + ex.message);
+      toast('No se pudo eliminar: ' + ex.message, 'error');
     }
   };
 
