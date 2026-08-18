@@ -3,6 +3,9 @@ import { api } from '../supabaseClient.js';
 import { ESTADOS_APARTADO, fmtMoney, fmtDateTime } from '../utils.js';
 import ApartadoDetail from './ApartadoDetail.jsx';
 import { useUI } from './UIProvider.jsx';
+import Pager, { usePager } from './Pager.jsx';
+
+const POR_PAGINA = 6;
 
 function ApartadoCard({ a, trabajadorNombre, onOpen, onAvanzar, onRetroceder, onDelete, draggable, onDragStart, onDragEnd, dragging }) {
   const idx = ESTADOS_APARTADO.findIndex((e) => e.key === a.estado);
@@ -45,6 +48,57 @@ function ApartadoCard({ a, trabajadorNombre, onOpen, onAvanzar, onRetroceder, on
           ✕
         </button>
       </div>
+    </div>
+  );
+}
+
+function ApartadoColumna({
+  estado,
+  items,
+  isOver,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  nombreTrabajador,
+  onOpen,
+  onAvanzar,
+  onRetroceder,
+  onDelete,
+  draggingId,
+  onDragStart,
+  onDragEnd,
+}) {
+  const { pageItems, page, setPage, totalPages } = usePager(items, POR_PAGINA);
+  return (
+    <div
+      className="col"
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      style={isOver ? { background: '#E4E9FB', outline: '2px dashed var(--primary)', outlineOffset: -2 } : undefined}
+    >
+      <div className="col-head">
+        <span className="sw" style={{ background: estado.color }} />
+        <h3>{estado.label}</h3>
+        <span className="count">{items.length}</span>
+      </div>
+      {items.length === 0 && <div className="empty-col">Arrastra aquí o usa los botones</div>}
+      {pageItems.map((a) => (
+        <ApartadoCard
+          key={a.id}
+          a={a}
+          trabajadorNombre={nombreTrabajador(a.registrado_por_trabajador_id)}
+          onOpen={onOpen}
+          onAvanzar={onAvanzar}
+          onRetroceder={onRetroceder}
+          onDelete={onDelete}
+          draggable
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          dragging={draggingId === a.id}
+        />
+      ))}
+      <Pager page={page} totalPages={totalPages} onChange={setPage} />
     </div>
   );
 }
@@ -196,17 +250,22 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
       </div>
 
       <p className="hint" style={{ marginBottom: 16 }}>
-        Solo Cyber ve este control. Arrastra la tarjeta a otra columna o usa los botones.
+        Solo Cyber ve este control. Arrastra la tarjeta a otra columna o usa los botones. Máximo {POR_PAGINA} por página en
+        cada columna, del más nuevo al más viejo.
       </p>
 
       <div className="board">
         {ESTADOS_APARTADO.map((estado) => {
-          const list = apartados.filter((a) => a.estado === estado.key);
+          const list = apartados
+            .filter((a) => a.estado === estado.key)
+            .sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
           const isOver = overCol === estado.key;
           return (
-            <div
-              className="col"
+            <ApartadoColumna
               key={estado.key}
+              estado={estado}
+              items={list}
+              isOver={isOver}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
@@ -214,30 +273,15 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
               }}
               onDragLeave={() => setOverCol((prev) => (prev === estado.key ? null : prev))}
               onDrop={(e) => onDropCol(e, estado.key)}
-              style={isOver ? { background: '#E4E9FB', outline: '2px dashed var(--primary)', outlineOffset: -2 } : undefined}
-            >
-              <div className="col-head">
-                <span className="sw" style={{ background: estado.color }} />
-                <h3>{estado.label}</h3>
-                <span className="count">{list.length}</span>
-              </div>
-              {list.length === 0 && <div className="empty-col">Arrastra aquí o usa los botones</div>}
-              {list.map((a) => (
-                <ApartadoCard
-                  key={a.id}
-                  a={a}
-                  trabajadorNombre={nombreTrabajador(a.registrado_por_trabajador_id)}
-                  onOpen={setOpenId}
-                  onAvanzar={avanzar}
-                  onRetroceder={retroceder}
-                  onDelete={del}
-                  draggable
-                  onDragStart={onDragStart}
-                  onDragEnd={onDragEnd}
-                  dragging={draggingId === a.id}
-                />
-              ))}
-            </div>
+              nombreTrabajador={nombreTrabajador}
+              onOpen={setOpenId}
+              onAvanzar={avanzar}
+              onRetroceder={retroceder}
+              onDelete={del}
+              draggingId={draggingId}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+            />
           );
         })}
       </div>
