@@ -48,12 +48,12 @@ export default function NuevaCotizacionModal({ profile, activeWorker, escuelasSu
 
   return (
     <div
-      className="modal-overlay"
+      className="modal-overlay nueva-cotizacion-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal" style={{ maxWidth: 460 }}>
+      <div className="modal nueva-cotizacion-modal" style={{ maxWidth: 460 }}>
         <div className="modal-top">
           <h2>Nueva cotización</h2>
           <button className="x-btn" onClick={onClose}>

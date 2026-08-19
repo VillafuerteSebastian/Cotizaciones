@@ -4633,3 +4633,221 @@ textarea:focus-visible {
 @media (max-width: 360px) {
   .activity-mobile-tabs { grid-template-columns: 1fr; }
 }
+
+.activity-empty { display: none; }
+
+@media (max-width: 700px) {
+  .activity-group.mobile-activity-active .activity-empty {
+    display: block;
+  }
+}
+
+
+/* =========================================================
+   FIX V3 — ACCOUNT BAR + NEW QUOTE MODAL
+   ========================================================= */
+
+/* Mobile-only account surface must never leak into desktop. */
+.mobile-account-bar {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  /* User switcher: compact app card, visible on every mobile screen. */
+  .mobile-account-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    margin: 12px 0 12px;
+    padding: 10px 11px;
+
+    color: #172B4D;
+    background: linear-gradient(135deg, #FFFFFF, #F8FBFF);
+    border: 1px solid #DFE8F3;
+    border-radius: 16px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .055);
+  }
+
+  .mobile-account-person {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .mobile-account-avatar {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    color: #fff;
+    background: linear-gradient(145deg, #0057C8, #004AAD);
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,74,173,.20);
+
+    font-size: 14px;
+    font-weight: 850;
+  }
+
+  .mobile-account-person > div:last-child {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-account-person strong {
+    max-width: 145px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    color: #172B4D;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .mobile-account-person span {
+    color: #7A8BA1;
+    font-size: 9px;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: .055em;
+  }
+
+  .mobile-account-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .mobile-account-btn {
+    min-height: 34px;
+    padding: 7px 9px;
+
+    color: #004AAD;
+    background: #EEF5FF;
+    border: 1px solid #D6E6FB;
+    border-radius: 10px;
+
+    font: inherit;
+    font-size: 9.5px;
+    font-weight: 800;
+  }
+
+  .mobile-account-btn:active {
+    transform: scale(.97);
+  }
+
+  .mobile-account-btn.danger {
+    color: #B42318;
+    background: #FFF4F3;
+    border-color: #FADBD8;
+  }
+
+  /* Nueva cotización is a centered app dialog, above bottom navigation. */
+  .nueva-cotizacion-overlay {
+    z-index: 1300;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding:
+      max(16px, env(safe-area-inset-top))
+      14px
+      max(16px, env(safe-area-inset-bottom)) !important;
+
+    overflow-y: auto;
+  }
+
+  .nueva-cotizacion-modal {
+    width: min(100%, 460px) !important;
+    max-width: 460px !important;
+    max-height: calc(100dvh - 32px) !important;
+
+    margin: auto !important;
+    padding: 20px 17px 17px !important;
+
+    overflow-y: auto;
+    overscroll-behavior: contain;
+
+    border: 1px solid rgba(226,232,240,.96) !important;
+    border-radius: 22px !important;
+    box-shadow: 0 24px 70px rgba(7,26,51,.26) !important;
+  }
+
+  /* Remove bottom-sheet handle only for this centered dialog. */
+  .nueva-cotizacion-modal::before {
+    display: none !important;
+  }
+
+  .nueva-cotizacion-modal .modal-top {
+    position: sticky;
+    top: -20px;
+    z-index: 3;
+
+    margin: -2px -2px 12px;
+    padding: 2px 2px 8px;
+
+    background: rgba(255,255,255,.97);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .nueva-cotizacion-modal form > .btn-primary.btn-block {
+    position: sticky;
+    bottom: -17px;
+    z-index: 4;
+
+    min-height: 48px;
+    margin: 10px -2px -2px;
+
+    box-shadow:
+      0 -10px 18px rgba(255,255,255,.95),
+      0 7px 18px rgba(0,74,173,.22);
+  }
+}
+
+@media (max-width: 390px) {
+  .mobile-account-bar {
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .mobile-account-avatar {
+    width: 33px;
+    height: 33px;
+    flex-basis: 33px;
+    border-radius: 10px;
+  }
+
+  .mobile-account-person strong {
+    max-width: 105px;
+    font-size: 11px;
+  }
+
+  .mobile-account-btn {
+    padding: 7px 8px;
+    font-size: 9px;
+  }
+
+  .nueva-cotizacion-overlay {
+    padding: 10px !important;
+  }
+
+  .nueva-cotizacion-modal {
+    max-height: calc(100dvh - 20px) !important;
+    padding: 18px 14px 14px !important;
+    border-radius: 19px !important;
+  }
+
+  .nueva-cotizacion-modal .modal-top {
+    top: -18px;
+  }
+}

@@ -57,7 +57,14 @@ function dayKey(iso) {
 
 function TablaActividad({ titulo, items }) {
   const { pageItems, page, setPage, totalPages } = usePager(items, 10);
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <div className="activity-empty cat-card" style={{ marginBottom: 0 }}>
+        <div className="section-label">{titulo} (0)</div>
+        <div className="empty-col">Sin registros en esta categoría.</div>
+      </div>
+    );
+  }
   return (
     <div className="cat-card" style={{ marginBottom: 0 }}>
       <div className="section-label">
@@ -342,7 +349,7 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
 
       <div className="activity-mobile-tabs" role="tablist" aria-label="Categorías de actividad">
         <button type="button" className={`activity-mobile-tab${mobileCategoria === 'todas' ? ' active' : ''}`} onClick={() => setMobileCategoria('todas')}>
-          <span>Todas</span><b>{actividad.length}</b>
+          <span>Todas</span><b>{actividad.filter((a) => categoriaDe(a.accion) !== 'caja').length}</b>
         </button>
         {CATEGORIAS_PARALELAS.map((cat) => {
           const count = (grupos[cat.key] || []).length;

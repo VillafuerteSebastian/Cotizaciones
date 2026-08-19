@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../supabaseClient.js';
 import { ESTADOS_APARTADO, fmtMoney, fmtDateTime } from '../utils.js';
 import ApartadoDetail from './ApartadoDetail.jsx';
@@ -118,7 +118,18 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
   const [draggingId, setDraggingId] = useState(null);
   const [overCol, setOverCol] = useState(null);
   const [openId, setOpenId] = useState(null);
-  const [mobileEstado, setMobileEstado] = useState(ESTADOS_APARTADO[0].key);
+  const [mobileEstado, setMobileEstado] = useState(() =>
+    ESTADOS_APARTADO.find((estado) => apartados.some((a) => a.estado === estado.key))?.key || ESTADOS_APARTADO[0].key
+  );
+
+  useEffect(() => {
+    if (!apartados.length) return;
+    const estadoActualTieneItems = apartados.some((a) => a.estado === mobileEstado);
+    if (!estadoActualTieneItems) {
+      const primeroConItems = ESTADOS_APARTADO.find((estado) => apartados.some((a) => a.estado === estado.key));
+      if (primeroConItems) setMobileEstado(primeroConItems.key);
+    }
+  }, [apartados, mobileEstado]);
 
   const nombreTrabajador = (id) => trabajadoresCyber.find((t) => t.id === id)?.nombre || null;
 
