@@ -56,7 +56,7 @@ function dayKey(iso) {
 }
 
 function TablaActividad({ titulo, items }) {
-  const { pageItems, page, setPage, totalPages } = usePager(items, 10);
+  const { pageItems, page, setPage, totalPages } = usePager(items, 15);
   if (items.length === 0) {
     return (
       <div className="activity-empty cat-card" style={{ marginBottom: 0 }}>

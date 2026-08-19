@@ -5,7 +5,7 @@ import Pager, { usePager } from './Pager.jsx';
 import { useUI } from './UIProvider.jsx';
 
 function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
-  const { pageItems, page, setPage, totalPages } = usePager(items, 10);
+  const { pageItems, page, setPage, totalPages } = usePager(items, 20);
   return (
     <div className="cat-card" style={{ marginBottom: 0 }}>
       <div className="section-label">
