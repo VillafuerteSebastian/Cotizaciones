@@ -188,29 +188,29 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
         <div className="brand">Cotizaciones</div>
         <div className="brand-sub">y encargos</div>
         <button className={`nav-item ${tab === 'tablero' ? 'active' : ''}`} onClick={() => setTab('tablero')}>
-          Tablero
+          <span className="mobile-nav-icon">⌂</span><span className="mobile-nav-label">Tablero</span>
         </button>
         {isCotizador && (
           <button className={`nav-item ${tab === 'proveedores' ? 'active' : ''}`} onClick={() => setTab('proveedores')}>
-            Proveedores
+            <span className="mobile-nav-icon">▣</span><span className="mobile-nav-label">Proveedores</span>
           </button>
         )}
         <button className={`nav-item ${tab === 'equipo' ? 'active' : ''}`} onClick={() => setTab('equipo')}>
-          Equipo
+          <span className="mobile-nav-icon">♟</span><span className="mobile-nav-label">Equipo</span>
         </button>
         {isCotizador && (
           <button className={`nav-item ${tab === 'faltantes' ? 'active' : ''}`} onClick={() => setTab('faltantes')}>
-            Faltantes en tienda
+            <span className="mobile-nav-icon">!</span><span className="mobile-nav-label">Faltantes</span>
           </button>
         )}
         {isCotizador && (
           <button className={`nav-item ${tab === 'apartados' ? 'active' : ''}`} onClick={() => setTab('apartados')}>
-            Apartados en tienda
+            <span className="mobile-nav-icon">▢</span><span className="mobile-nav-label">Apartados</span>
           </button>
         )}
         {isCotizador && (
           <button className={`nav-item ${tab === 'actividad' ? 'active' : ''}`} onClick={() => setTab('actividad')}>
-            Actividad
+            <span className="mobile-nav-icon">↗</span><span className="mobile-nav-label">Actividad</span>
           </button>
         )}
         <div className="sidebar-footer">
@@ -240,6 +240,19 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
       </div>
 
       <div className="main">
+        <div className="mobile-account-bar">
+          <div className="mobile-account-person">
+            <div className="mobile-account-avatar">{(activeWorker ? activeWorker.nombre : profile.nombre).charAt(0).toUpperCase()}</div>
+            <div>
+              <strong>{activeWorker ? activeWorker.nombre : profile.nombre}</strong>
+              <span>{isCotizador ? 'Cyber' : 'Ocampo'}</span>
+            </div>
+          </div>
+          <div className="mobile-account-actions">
+            <button type="button" className="mobile-account-btn" onClick={onChangeWorker}>Cambiar</button>
+            <button type="button" className="mobile-account-btn danger" onClick={onLogout}>Salir</button>
+          </div>
+        </div>
         {tab === 'tablero' && (
           <React.Fragment>
             <div className="main-header">

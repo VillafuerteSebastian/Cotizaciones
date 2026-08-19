@@ -64,7 +64,7 @@ function TablaActividad({ titulo, items }) {
         {titulo} ({items.length})
       </div>
       <div className="table-wrap table-excel">
-        <table>
+        <table className="table-mobile-cards">
           <thead>
             <tr>
               <th>Quién</th>
@@ -76,10 +76,10 @@ function TablaActividad({ titulo, items }) {
           <tbody>
             {pageItems.map((a) => (
               <tr key={a.id}>
-                <td>{a.trabajador_nombre || (a.profile_role === 'cotizador' ? 'Cyber' : 'Ocampo')}</td>
-                <td>{a.accion}</td>
-                <td className="item-notas">{a.detalle}</td>
-                <td className="item-time">{fmtDateTime(a.created_at)}</td>
+                <td data-label="Quién">{a.trabajador_nombre || (a.profile_role === 'cotizador' ? 'Cyber' : 'Ocampo')}</td>
+                <td data-label="Acción">{a.accion}</td>
+                <td data-label="Detalle" className="item-notas">{a.detalle || '—'}</td>
+                <td data-label="Cuándo" className="item-time">{fmtDateTime(a.created_at)}</td>
               </tr>
             ))}
           </tbody>
@@ -243,7 +243,7 @@ function CajaCalendario({ items }) {
         ) : (
           <>
             <div className="table-wrap table-excel">
-              <table>
+              <table className="table-mobile-cards">
                 <thead>
                   <tr>
                     <th>Quién</th>
@@ -255,10 +255,10 @@ function CajaCalendario({ items }) {
                 <tbody>
                   {pageItems.map((a) => (
                     <tr key={a.id}>
-                      <td>{a.trabajador_nombre || (a.profile_role === 'cotizador' ? 'Cyber' : 'Ocampo')}</td>
-                      <td>{a.accion.replace('💰 ', '')}</td>
-                      <td className="item-notas">{a.detalle}</td>
-                      <td className="item-time">{fmtDateTime(a.created_at)}</td>
+                      <td data-label="Quién">{a.trabajador_nombre || (a.profile_role === 'cotizador' ? 'Cyber' : 'Ocampo')}</td>
+                      <td data-label="Tipo">{a.accion.replace('💰 ', '')}</td>
+                      <td data-label="Detalle" className="item-notas">{a.detalle || '—'}</td>
+                      <td data-label="Cuándo" className="item-time">{fmtDateTime(a.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -277,6 +277,7 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
   const [monto, setMonto] = useState('');
   const [nota, setNota] = useState('');
   const [busy, setBusy] = useState(false);
+  const [mobileCategoria, setMobileCategoria] = useState('todas');
 
   const registrarMovimiento = async (e) => {
     e.preventDefault();
@@ -339,11 +340,32 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
         Separado por tipo para que sea más fácil de revisar.
       </p>
 
-      <div className="parallel-grid">
+      <div className="activity-mobile-tabs" role="tablist" aria-label="Categorías de actividad">
+        <button type="button" className={`activity-mobile-tab${mobileCategoria === 'todas' ? ' active' : ''}`} onClick={() => setMobileCategoria('todas')}>
+          <span>Todas</span><b>{actividad.length}</b>
+        </button>
+        {CATEGORIAS_PARALELAS.map((cat) => {
+          const count = (grupos[cat.key] || []).length;
+          return (
+            <button key={cat.key} type="button" className={`activity-mobile-tab${mobileCategoria === cat.key ? ' active' : ''}`} onClick={() => setMobileCategoria(cat.key)}>
+              <span>{cat.titulo}</span><b>{count}</b>
+            </button>
+          );
+        })}
+        <button type="button" className={`activity-mobile-tab${mobileCategoria === 'otros' ? ' active' : ''}`} onClick={() => setMobileCategoria('otros')}>
+          <span>🗂️ Otros</span><b>{(grupos.otros || []).length}</b>
+        </button>
+      </div>
+
+      <div className="parallel-grid activity-groups">
         {CATEGORIAS_PARALELAS.map((cat) => (
-          <TablaActividad key={cat.key} titulo={cat.titulo} items={grupos[cat.key] || []} />
+          <div key={cat.key} className={`activity-group${mobileCategoria === 'todas' || mobileCategoria === cat.key ? ' mobile-activity-active' : ''}`}>
+            <TablaActividad titulo={cat.titulo} items={grupos[cat.key] || []} />
+          </div>
         ))}
-        <TablaActividad titulo="🗂️ Otros" items={grupos.otros || []} />
+        <div className={`activity-group${mobileCategoria === 'todas' || mobileCategoria === 'otros' ? ' mobile-activity-active' : ''}`}>
+          <TablaActividad titulo="🗂️ Otros" items={grupos.otros || []} />
+        </div>
       </div>
 
       {actividad.length === 0 && <div className="empty-col">Aún no hay actividad registrada.</div>}

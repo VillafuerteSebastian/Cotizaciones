@@ -356,7 +356,7 @@ export default function CotizacionDetail({
         <div className="section-label">Productos cotizados ({(c.cotizacion_items || []).length})</div>
         {err && <div className="err">{err}</div>}
         <div className="table-wrap">
-        <table>
+        <table className="table-mobile-cards">
           <thead>
             <tr>
               <th>Producto</th>
@@ -403,11 +403,11 @@ export default function CotizacionDetail({
                     {it.producto}
                     {it.descripcion && <div className="item-notas">{it.descripcion}</div>}
                   </td>
-                  <td>{it.proveedor ? it.proveedor.nombre : '—'}</td>
-                  <td>{it.cantidad}</td>
-                  <td>{it.precio_final !== null ? fmtMoney(it.precio_final) : 'Pendiente'}</td>
-                  <td className="item-notas">{it.notas || ''}</td>
-                  <td className="item-time">
+                  <td data-label="Proveedor">{it.proveedor ? it.proveedor.nombre : '—'}</td>
+                  <td data-label="Cantidad">{it.cantidad}</td>
+                  <td data-label="Precio">{it.precio_final !== null ? fmtMoney(it.precio_final) : 'Pendiente'}</td>
+                  <td data-label="Notas" className="item-notas">{it.notas || '—'}</td>
+                  <td data-label="Cotizó / agregado" className="item-time">
                     {it.cotizado ? it.cotizado.nombre : '—'}
                     <br />
                     {fmtDateTime(it.created_at)}

@@ -54,6 +54,7 @@ function ApartadoCard({ a, trabajadorNombre, onOpen, onAvanzar, onRetroceder, on
 
 function ApartadoColumna({
   estado,
+  mobileActive,
   items,
   isOver,
   onDragOver,
@@ -71,7 +72,7 @@ function ApartadoColumna({
   const { pageItems, page, setPage, totalPages } = usePager(items, POR_PAGINA);
   return (
     <div
-      className="col"
+      className={`col${mobileActive ? ' mobile-col-active' : ''}`}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -117,6 +118,7 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
   const [draggingId, setDraggingId] = useState(null);
   const [overCol, setOverCol] = useState(null);
   const [openId, setOpenId] = useState(null);
+  const [mobileEstado, setMobileEstado] = useState(ESTADOS_APARTADO[0].key);
 
   const nombreTrabajador = (id) => trabajadoresCyber.find((t) => t.id === id)?.nombre || null;
 
@@ -254,7 +256,23 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
         cada columna, del más nuevo al más viejo.
       </p>
 
-      <div className="board">
+      <div className="board apartados-board">
+        <div className="mobile-board-tabs" role="tablist" aria-label="Estados de apartados">
+          {ESTADOS_APARTADO.map((estado) => {
+            const count = apartados.filter((a) => a.estado === estado.key).length;
+            const active = mobileEstado === estado.key;
+            return (
+              <button key={estado.key} type="button"
+                className={`mobile-board-tab${active ? ' active' : ''}`}
+                onClick={() => setMobileEstado(estado.key)}
+                role="tab" aria-selected={active}>
+                <span className="mobile-board-tab-dot" style={{ background: estado.color }} />
+                <span className="mobile-board-tab-label">{estado.label}</span>
+                <span className="mobile-board-tab-count">{count}</span>
+              </button>
+            );
+          })}
+        </div>
         {ESTADOS_APARTADO.map((estado) => {
           const list = apartados
             .filter((a) => a.estado === estado.key)
@@ -264,6 +282,7 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
             <ApartadoColumna
               key={estado.key}
               estado={estado}
+              mobileActive={mobileEstado === estado.key}
               items={list}
               isOver={isOver}
               onDragOver={(e) => {

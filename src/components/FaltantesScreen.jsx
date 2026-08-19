@@ -15,7 +15,7 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
         <div className="empty-col">{vacio}</div>
       ) : (
         <div className="table-wrap table-excel">
-        <table>
+        <table className="table-mobile-cards">
           <thead>
             <tr>
               <th>Producto</th>
@@ -28,11 +28,11 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
           <tbody>
             {pageItems.map((f) => (
               <tr key={f.id}>
-                <td style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>{f.producto}</td>
-                <td className="item-notas">{f.notas || ''}</td>
-                <td>{f.veces_reportado > 1 ? `×${f.veces_reportado}` : '—'}</td>
-                <td className="item-time">{fmtDateTime(f.ultima_vez || f.created_at)}</td>
-                <td>
+                <td data-label="Producto" style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>{f.producto}</td>
+                <td data-label="Notas" className="item-notas">{f.notas || '—'}</td>
+                <td data-label="Veces">{f.veces_reportado > 1 ? `×${f.veces_reportado}` : '—'}</td>
+                <td data-label="Última vez" className="item-time">{fmtDateTime(f.ultima_vez || f.created_at)}</td>
+                <td data-label="Acciones">
                   <div className="row" style={{ gap: 4 }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => onToggle(f)}>
                       {f.resuelto ? 'Reabrir' : 'Resuelto'}
