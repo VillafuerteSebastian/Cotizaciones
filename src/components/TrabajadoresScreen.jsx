@@ -145,7 +145,7 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
               <div className="sub">{t.activo ? 'Activo' : 'Inactivo'}</div>
             </div>
             {isAdmin && (
-              <div className="row" style={{ flex: 'none', gap: 6, flexWrap: 'wrap' }}>
+              <div className="action-row" style={{ gap: 6 }}>
                 {!t.es_administrador && (
                   <button className="btn btn-ghost btn-sm" onClick={() => setPinModal({ worker: t, mode: 'set-admin' })}>
                     Hacer admin

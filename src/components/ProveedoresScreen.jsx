@@ -56,7 +56,7 @@ function ProveedorEditForm({ p, onCancel, onSaved }) {
         <label>Notas</label>
         <input value={notas} onChange={(e) => setNotas(e.target.value)} />
       </div>
-      <div className="row">
+      <div className="action-row">
         <button className="btn btn-primary btn-sm" disabled={busy}>
           {busy ? 'Guardando…' : 'Guardar cambios'}
         </button>
@@ -164,7 +164,7 @@ export default function ProveedoresScreen({ activeWorker, proveedores, reload })
                 {p.notas && <div className="sub">{p.notas}</div>}
               </div>
               {isAdmin && (
-                <div className="row" style={{ flex: 'none', gap: 6 }}>
+                <div className="action-row" style={{ gap: 6 }}>
                   <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(p.id)}>
                     Editar
                   </button>

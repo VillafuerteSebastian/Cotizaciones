@@ -59,7 +59,7 @@ export function ImageThumb({ src, alt, size = 46, style, radius = 6 }) {
                 background: '#fff',
               }}
             />
-            <div className="row" style={{ gap: 8 }}>
+            <div className="action-row" style={{ justifyContent: 'center' }}>
               <a href={src} download={`${nombreArchivo}.jpg`} className="btn btn-primary btn-sm">
                 Descargar
               </a>

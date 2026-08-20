@@ -167,7 +167,7 @@ function ItemFormCotizador({ initial, proveedores, trabajadoresCyber, activeWork
               <option value="__nuevo__">+ Nuevo proveedor…</option>
             </select>
           ) : (
-            <div className="row">
+            <div className="input-with-button">
               <input autoFocus placeholder="Nombre proveedor" value={nuevoProvNombre} onChange={(e) => setNuevoProvNombre(e.target.value)} />
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNuevoProv(false)}>
                 x
@@ -198,7 +198,7 @@ function ItemFormCotizador({ initial, proveedores, trabajadoresCyber, activeWork
         <label>Notas de proceso (opcional)</label>
         <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ej: precio válido por 8 días" />
       </div>
-      <div className="row" style={{ marginTop: 4 }}>
+      <div className="action-row" style={{ marginTop: 4 }}>
         <button className="btn btn-primary btn-sm" disabled={busy}>
           {busy ? 'Guardando…' : submitLabel}
         </button>
@@ -312,16 +312,16 @@ export default function CotizacionDetail({
           </button>
         </div>
 
-        <div className="row" style={{ alignItems: 'center', margin: '10px 0 4px' }}>
+        <div className="action-row" style={{ margin: '10px 0 4px' }}>
           <Badge estado={c.estado} />
-          <span style={{ fontSize: 12, color: 'var(--ink-soft)', flex: 2 }}>
+          <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
             {c.escuela} · Solicita: {c.solicitante_nombre}
           </span>
         </div>
         <StatusStepper estado={c.estado} />
 
         {/* Ambos lados pueden mover el estado del encargo. */}
-        <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+        <div className="action-row" style={{ marginTop: 12 }}>
           {ESTADOS.map((e) => (
             <button
               key={e.key}
@@ -336,7 +336,7 @@ export default function CotizacionDetail({
         {/* La cancelación es aparte del flujo normal: es para cuando el
             encargo no se llegó a pedir o se canceló, y así no se queda
             "abierto" indefinidamente en una de las columnas activas. */}
-        <div className="row" style={{ marginTop: 8 }}>
+        <div className="action-row" style={{ marginTop: 8 }}>
           {c.estado === CANCELADA.key ? (
             <button className="btn btn-ghost btn-sm" onClick={() => changeEstado(ESTADOS[0].key)}>
               ↺ Reabrir cotización
@@ -396,7 +396,7 @@ export default function CotizacionDetail({
                 )
               ) : (
                 <tr key={it.id}>
-                  <td>
+                  <td data-label="Producto">
                     {it.imagen && (
                       <ImageThumb src={it.imagen} alt={it.producto} size={46} style={{ marginBottom: 4 }} />
                     )}
@@ -412,8 +412,8 @@ export default function CotizacionDetail({
                     <br />
                     {fmtDateTime(it.created_at)}
                   </td>
-                  <td>
-                    <div className="row" style={{ gap: 4 }}>
+                  <td data-label="Acciones">
+                    <div className="action-row" style={{ gap: 4 }}>
                       <button className="x-btn" onClick={() => setEditingId(it.id)} title="Editar">
                         ✎
                       </button>

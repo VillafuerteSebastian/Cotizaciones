@@ -20,11 +20,15 @@ exception when duplicate_object then null; end $$;
 alter type public.estado_cotizacion add value if not exists 'cancelada';
 
 -- Flujo simple para apartados/pedidos hechos directamente en tienda
--- (no pasan por todo el proceso de cotización): pedido -> llegó a
--- tienda -> entregado al cliente. Solo Cyber los usa.
+-- (no pasan por todo el proceso de cotización): pedido -> en camino ->
+-- llegó a tienda -> entregado al cliente. Solo Cyber los usa.
 do $$ begin
   create type public.estado_apartado as enum ('pedido', 'en_tienda', 'entregado');
 exception when duplicate_object then null; end $$;
+
+-- Estado nuevo intermedio: el apartado ya salió del proveedor / de camino
+-- a la tienda, pero todavía no llegó físicamente.
+alter type public.estado_apartado add value if not exists 'en_camino' after 'pedido';
 
 -- ---------- Perfiles (uno por LOGIN; aquí solo hay 2: Cyber y Ocampo) ----------
 create table if not exists public.profiles (

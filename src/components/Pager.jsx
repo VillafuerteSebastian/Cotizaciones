@@ -19,7 +19,7 @@ export function usePager(items, pageSize = 10) {
 export default function Pager({ page, totalPages, onChange }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="row" style={{ justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 20, flex: 'none' }}>
+    <div className="pager-row">
       <button className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
         ← Anterior
       </button>

@@ -37,7 +37,7 @@ export default function ImagenInput({ value, onChange, label = 'Foto (opcional)'
     <div className="field" style={{ marginBottom: 0 }}>
       <label>{label}</label>
       {value && (
-        <div className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <div className="action-row" style={{ marginBottom: 6 }}>
           <ImageThumb src={value} alt="captura" size={90} />
           <button type="button" className="link-btn" onClick={() => onChange(null)}>
             {quitarLabel}

@@ -124,12 +124,12 @@ export default function ApartadoDetail({ id, trabajadoresCyber, onClose, onChang
           </button>
         </div>
 
-        <div className="row" style={{ alignItems: 'center', margin: '10px 0 4px' }}>
+        <div className="action-row" style={{ margin: '10px 0 4px' }}>
           <EstadoBadge estado={a.estado} />
-          <span style={{ fontSize: 12, color: 'var(--ink-soft)', flex: 2 }}>Cliente: {a.cliente_nombre}</span>
+          <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Cliente: {a.cliente_nombre}</span>
         </div>
 
-        <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+        <div className="action-row" style={{ marginTop: 12 }}>
           {ESTADOS_APARTADO.map((e) => (
             <button
               key={e.key}
@@ -194,13 +194,13 @@ export default function ApartadoDetail({ id, trabajadoresCyber, onClose, onChang
           <textarea style={{ minHeight: 80 }} value={notas} onChange={marcar(setNotas)} placeholder="Detalle, talla, color…" />
         </div>
 
-        <div className="row" style={{ marginTop: 4, flexWrap: 'wrap' }}>
+        <div className="action-row" style={{ marginTop: 4 }}>
           {dirty && (
-            <button className="btn btn-primary btn-sm" style={{ flex: 'none' }} disabled={busy} onClick={guardar}>
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={guardar}>
               {busy ? 'Guardando…' : 'Guardar cambios'}
             </button>
           )}
-          <button className="btn btn-danger btn-sm" style={{ flex: 'none', marginLeft: 'auto' }} onClick={eliminar}>
+          <button className="btn btn-danger btn-sm" style={{ marginLeft: 'auto' }} onClick={eliminar}>
             Eliminar apartado
           </button>
         </div>

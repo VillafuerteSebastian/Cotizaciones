@@ -33,7 +33,7 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
                 <td data-label="Veces">{f.veces_reportado > 1 ? `×${f.veces_reportado}` : '—'}</td>
                 <td data-label="Última vez" className="item-time">{fmtDateTime(f.ultima_vez || f.created_at)}</td>
                 <td data-label="Acciones">
-                  <div className="row" style={{ gap: 4 }}>
+                  <div className="action-row" style={{ gap: 4 }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => onToggle(f)}>
                       {f.resuelto ? 'Reabrir' : 'Resuelto'}
                     </button>

@@ -13,9 +13,10 @@ export const CANCELADA = { key: 'cancelada', label: 'Cancelada', color: 'var(--d
 export const estadoInfo = (k) => ESTADOS.find((e) => e.key === k) || (k === CANCELADA.key ? CANCELADA : ESTADOS[0]);
 
 // Flujo simplificado para apartados/pedidos hechos directamente en tienda
-// (solo Cyber los ve): pedido -> llegó a tienda -> entregado al cliente.
+// (solo Cyber los ve): pedido -> en camino -> llegó a tienda -> entregado.
 export const ESTADOS_APARTADO = [
   { key: 'pedido', label: 'Pedido', color: '#F59E0B' },
+  { key: 'en_camino', label: 'En camino', color: '#004AAD' },
   { key: 'en_tienda', label: 'Llegó a tienda', color: '#7C3AED' },
   { key: 'entregado', label: 'Entregado', color: '#16A34A' },
 ];

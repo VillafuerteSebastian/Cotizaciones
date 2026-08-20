@@ -33,7 +33,7 @@ function ApartadoCard({ a, trabajadorNombre, onOpen, onAvanzar, onRetroceder, on
         <span>{trabajadorNombre || '—'}</span>
         <span>{fmtDateTime(a.created_at)}</span>
       </div>
-      <div className="row" style={{ marginTop: 10, gap: 6, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
+      <div className="card-actions" onClick={(e) => e.stopPropagation()}>
         {idx > 0 && (
           <button className="btn btn-ghost btn-sm" style={{ flex: 'none' }} onClick={() => onRetroceder(a)}>
             ← {ESTADOS_APARTADO[idx - 1].label}

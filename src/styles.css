@@ -2059,6 +2059,76 @@ tbody tr:last-child td {
   flex: 1;
 }
 
+/* Fila de paginación (← Anterior / Página X de Y / Siguiente →).
+   Clase propia (no reutiliza .row) para que nunca quede atrapada por
+   las reglas de ".row" que en móvil la convierten en grilla de
+   formulario — eso hacía que "Siguiente" se descuadrara y se
+   encimara con lo de abajo. Siempre centrada, siempre en fila. */
+.pager-row {
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  margin: 4px 0 20px;
+}
+
+/* Fila de botones de acción dentro de una tarjeta (avanzar/retroceder/
+   eliminar en Apartados). Misma razón que .pager-row: no depender de
+   ".row" para que no la convierta en grilla de formulario en móvil. */
+.card-actions {
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  align-items: center;
+
+  gap: 6px;
+
+  margin-top: 10px;
+}
+
+/* Uso general para cualquier grupo de botones/acciones (badges +
+   texto, filas de estado, editar/eliminar, etc.) que NO sea un
+   formulario. Nunca se convierte en grilla de 2 columnas — eso es
+   solo para pares de campos de formulario, no para botones. */
+.action-row {
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+/* Input + botón pegado (ej. "nombre del proveedor nuevo" + x) donde el
+   input debe estirarse y el botón quedarse a su tamaño natural. */
+.input-with-button {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.input-with-button input {
+  flex: 1;
+  min-width: 0;
+}
+
+.input-with-button button {
+  flex: none;
+}
+
 .divider {
 
   height:
@@ -4033,6 +4103,7 @@ textarea:focus-visible {
 
   .table-wrap:has(.table-mobile-cards) {
     overflow: visible;
+    max-height: none;
     border: 0;
     background: transparent;
     box-shadow: none;
@@ -4193,9 +4264,13 @@ textarea:focus-visible {
     gap: 8px;
   }
 
+  /* 2 columnas, no 3: el marcado real es [info][acciones] (las
+     acciones ni siquiera aparecen si el usuario no es admin). Con 3
+     columnas la de info caía en la columna "auto" en vez de la
+     flexible, y el texto largo no truncaba con ellipsis como debía. */
   .prov-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 9px;
 
@@ -4488,6 +4563,7 @@ textarea:focus-visible {
   }
   .table-wrap:has(.table-mobile-cards) {
     overflow: visible;
+    max-height: none;
     border: 0;
     background: transparent;
     box-shadow: none;
