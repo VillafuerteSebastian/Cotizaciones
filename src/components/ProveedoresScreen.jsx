@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
 import { useUI } from './UIProvider.jsx';
 import FormModal from './FormModal.jsx';
+import { AnimatePresence } from './Motion.jsx';
 
 function ProveedorEditForm({ p, onCancel, onSaved }) {
   const { toast } = useUI();
@@ -162,8 +163,9 @@ export default function ProveedoresScreen({ activeWorker, proveedores, reload, s
         )}
       </div>
 
+      <AnimatePresence>
       {showForm && isAdmin && (
-        <FormModal title="Nuevo proveedor" onClose={onCloseForm} maxWidth={440}>
+        <FormModal key="form-proveedor" title="Nuevo proveedor" onClose={onCloseForm} maxWidth={440}>
           <form onSubmit={add}>
             <div className="field">
               <label>Nombre</label>
@@ -183,6 +185,7 @@ export default function ProveedoresScreen({ activeWorker, proveedores, reload, s
           </form>
         </FormModal>
       )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { hashPin } from '../pinUtils.js';
 import PinModal from './PinModal.jsx';
 import { useUI } from './UIProvider.jsx';
 import FormModal from './FormModal.jsx';
+import { AnimatePresence } from './Motion.jsx';
 
 export default function TrabajadoresScreen({
   profile,
@@ -179,8 +180,10 @@ export default function TrabajadoresScreen({
         )}
       </div>
 
+      <AnimatePresence>
       {showForm && isAdmin && (
         <FormModal
+          key="form-persona"
           title="Agregar persona"
           subtitle={isCotizador ? 'Se agrega al equipo de Cyber.' : 'Se agrega al equipo de Ocampo.'}
           onClose={onCloseForm}
@@ -197,9 +200,12 @@ export default function TrabajadoresScreen({
           </form>
         </FormModal>
       )}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {pinModal && (
         <PinModal
+          key="pin-modal"
           title={pinModal.mode === 'set-admin' ? `PIN para ${pinModal.worker.nombre}` : `Cambiar PIN de ${pinModal.worker.nombre}`}
           subtitle="Este PIN se pedirá cada vez que alguien intente seleccionar a esta persona."
           confirmLabel="Guardar"
@@ -207,6 +213,7 @@ export default function TrabajadoresScreen({
           onSubmit={guardarPin}
         />
       )}
+      </AnimatePresence>
     </div>
   );
 }

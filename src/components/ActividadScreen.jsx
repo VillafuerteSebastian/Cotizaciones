@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { fmtMoney, fmtDateTime } from '../utils.js';
 import Pager, { usePager } from './Pager.jsx';
 import FormModal from './FormModal.jsx';
+import { AnimatePresence } from './Motion.jsx';
 
 const TIPOS_MOVIMIENTO = ['Envío a contador', 'Retiro de caja', 'Cambio de sinpe'];
 
@@ -365,8 +366,10 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
         />
       </section>
 
+      <AnimatePresence>
       {showForm && (
         <FormModal
+          key="form-movimiento"
           title="Movimiento de caja"
           subtitle={activeWorker ? `Registra: ${activeWorker.nombre}` : null}
           onClose={onCloseForm}
@@ -397,6 +400,7 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
           </form>
         </FormModal>
       )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
 import { ESTADOS, CANCELADA, fmtMoney, fmtDateTime, itemsTotal } from '../utils.js';
 import { StatusStepper } from './StatusStepper.jsx';
+import { motion, AnimatePresence } from './Motion.jsx';
+
+const cardMotion = {
+  layout: true,
+  initial: { opacity: 0, y: 10, scale: 0.96 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, scale: 0.92, transition: { duration: 0.15 } },
+  transition: { type: 'spring', stiffness: 500, damping: 35 },
+};
 
 const COLUMNAS = [...ESTADOS, CANCELADA];
 
@@ -88,10 +97,14 @@ export default function Board({ cotizaciones, onOpen, canDrag, onMoveEstado }) {
               <span className="count">{list.length}</span>
             </div>
             {list.length === 0 && <div className="empty-col">{canDrag ? 'No hay cotizaciones aquí' : 'Sin cotizaciones'}</div>}
-            {list.map((c) => (
-              <CotizacionCard key={c.id} c={c} onOpen={onOpen} draggable={canDrag}
-                onDragStart={onDragStart} onDragEnd={onDragEnd} dragging={draggingId === c.id} />
-            ))}
+            <AnimatePresence>
+              {list.map((c) => (
+                <motion.div key={c.id} {...cardMotion}>
+                  <CotizacionCard c={c} onOpen={onOpen} draggable={canDrag}
+                    onDragStart={onDragStart} onDragEnd={onDragEnd} dragging={draggingId === c.id} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         );
       })}

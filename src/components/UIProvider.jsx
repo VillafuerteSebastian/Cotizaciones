@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
+import { motion, AnimatePresence, MotionOverlay, MotionModal } from './Motion.jsx';
 
 const UIContext = createContext(null);
 
@@ -60,50 +61,63 @@ export function UIProvider({ children }) {
       {children}
 
       <div className="toast-stack" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast toast-${t.type}`} onClick={() => dismissToast(t.id)}>
-            <span className="toast-icon">{ICONOS[t.type] || ICONOS.info}</span>
-            <span className="toast-msg">{t.message}</span>
-            <button
-              type="button"
-              className="toast-x"
-              onClick={(e) => {
-                e.stopPropagation();
-                dismissToast(t.id);
-              }}
-              aria-label="Cerrar"
+        <AnimatePresence>
+          {toasts.map((t) => (
+            <motion.div
+              key={t.id}
+              layout
+              initial={{ opacity: 0, y: 16, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 40, scale: 0.95, transition: { duration: 0.16, ease: 'easeIn' } }}
+              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+              className={`toast toast-${t.type}`}
+              onClick={() => dismissToast(t.id)}
             >
-              ✕
-            </button>
-          </div>
-        ))}
+              <span className="toast-icon">{ICONOS[t.type] || ICONOS.info}</span>
+              <span className="toast-msg">{t.message}</span>
+              <button
+                type="button"
+                className="toast-x"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dismissToast(t.id);
+                }}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
 
-      {confirmState && (
-        <div
-          className="modal-overlay confirm-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeConfirm(false);
-          }}
-        >
-          <div className="modal confirm-modal" role="alertdialog" aria-modal="true">
-            <p className="confirm-message">{confirmState.message}</p>
-            {confirmState.detail && <p className="hint confirm-detail">{confirmState.detail}</p>}
-            <div className="row confirm-actions">
-              <button className="btn btn-ghost" onClick={() => closeConfirm(false)}>
-                {confirmState.cancelLabel}
-              </button>
-              <button
-                className={`btn ${confirmState.danger ? 'btn-danger' : 'btn-primary'}`}
-                autoFocus
-                onClick={() => closeConfirm(true)}
-              >
-                {confirmState.confirmLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {confirmState && (
+          <MotionOverlay
+            className="confirm-overlay"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeConfirm(false);
+            }}
+          >
+            <MotionModal className="confirm-modal" role="alertdialog" aria-modal="true">
+              <p className="confirm-message">{confirmState.message}</p>
+              {confirmState.detail && <p className="hint confirm-detail">{confirmState.detail}</p>}
+              <div className="row confirm-actions">
+                <button className="btn btn-ghost" onClick={() => closeConfirm(false)}>
+                  {confirmState.cancelLabel}
+                </button>
+                <button
+                  className={`btn ${confirmState.danger ? 'btn-danger' : 'btn-primary'}`}
+                  autoFocus
+                  onClick={() => closeConfirm(true)}
+                >
+                  {confirmState.confirmLabel}
+                </button>
+              </div>
+            </MotionModal>
+          </MotionOverlay>
+        )}
+      </AnimatePresence>
     </UIContext.Provider>
   );
 }

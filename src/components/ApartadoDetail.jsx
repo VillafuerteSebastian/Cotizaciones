@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../supabaseClient.js';
 import { ESTADOS_APARTADO, fmtMoney, fmtDateTime } from '../utils.js';
 import { useUI } from './UIProvider.jsx';
+import { MotionOverlay, MotionModal } from './Motion.jsx';
 
 function EstadoBadge({ estado }) {
   const info = ESTADOS_APARTADO.find((e) => e.key === estado) || ESTADOS_APARTADO[0];
@@ -104,13 +105,12 @@ export default function ApartadoDetail({ id, trabajadoresCyber, onClose, onChang
   if (!a) return null;
 
   return (
-    <div
-      className="modal-overlay"
+    <MotionOverlay
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal" style={{ maxWidth: 560 }}>
+      <MotionModal style={{ maxWidth: 560 }}>
         <div className="modal-top">
           <div>
             <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 600 }}>
@@ -210,7 +210,7 @@ export default function ApartadoDetail({ id, trabajadoresCyber, onClose, onChang
           <span>Creado: {fmtDateTime(a.created_at)}</span>
           <span>Actualizado: {fmtDateTime(a.updated_at)}</span>
         </div>
-      </div>
-    </div>
+      </MotionModal>
+    </MotionOverlay>
   );
 }

@@ -5,6 +5,7 @@ import { StatusStepper, Badge } from './StatusStepper.jsx';
 import ImagenInput from './ImagenInput.jsx';
 import { ImageThumb } from './ImageViewer.jsx';
 import { useUI } from './UIProvider.jsx';
+import { MotionOverlay, MotionModal } from './Motion.jsx';
 
 function NotasGenerales({ value, imagen, onSave, isSolicitante }) {
   const [v, setV] = useState(value);
@@ -295,13 +296,12 @@ export default function CotizacionDetail({
   const total = itemsTotal(c.cotizacion_items);
 
   return (
-    <div
-      className="modal-overlay"
+    <MotionOverlay
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal">
+      <MotionModal>
         <div className="modal-top">
           <div>
             <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 600 }}>#{c.folio}</div>
@@ -454,7 +454,7 @@ export default function CotizacionDetail({
             )}
           </React.Fragment>
         )}
-      </div>
-    </div>
+      </MotionModal>
+    </MotionOverlay>
   );
 }

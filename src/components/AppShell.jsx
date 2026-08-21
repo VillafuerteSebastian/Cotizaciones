@@ -11,6 +11,25 @@ import ActividadScreen from './ActividadScreen.jsx';
 import CotizacionDetail from './CotizacionDetail.jsx';
 import NuevaCotizacionModal from './NuevaCotizacionModal.jsx';
 import { useUI } from './UIProvider.jsx';
+import { motion, AnimatePresence, tabFade } from './Motion.jsx';
+
+// Botón de navegación con un "pill" animado (Framer Motion, layoutId) que
+// se desliza de una pestaña a otra en vez de simplemente aparecer/desaparecer.
+function NavItem({ active, onClick, icon, label }) {
+  return (
+    <button className={`nav-item${active ? ' active' : ''}`} onClick={onClick}>
+      {active && (
+        <motion.span
+          layoutId="nav-active-bg"
+          className="nav-item-active-bg"
+          transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+        />
+      )}
+      <span className="mobile-nav-icon">{icon}</span>
+      <span className="mobile-nav-label">{label}</span>
+    </button>
+  );
+}
 
 // Cada pestaña tiene su propio "agregar", pero todas se comportan igual que
 // el tablero de cotizaciones: un solo botón en el encabezado que abre una
@@ -221,31 +240,19 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
       <div className="sidebar">
         <div className="brand">Cotizaciones</div>
         <div className="brand-sub">y encargos</div>
-        <button className={`nav-item ${tab === 'tablero' ? 'active' : ''}`} onClick={() => setTab('tablero')}>
-          <span className="mobile-nav-icon">⌂</span><span className="mobile-nav-label">Tablero</span>
-        </button>
+        <NavItem active={tab === 'tablero'} onClick={() => setTab('tablero')} icon="⌂" label="Tablero" />
         {isCotizador && (
-          <button className={`nav-item ${tab === 'proveedores' ? 'active' : ''}`} onClick={() => setTab('proveedores')}>
-            <span className="mobile-nav-icon">▣</span><span className="mobile-nav-label">Proveedores</span>
-          </button>
+          <NavItem active={tab === 'proveedores'} onClick={() => setTab('proveedores')} icon="▣" label="Proveedores" />
         )}
-        <button className={`nav-item ${tab === 'equipo' ? 'active' : ''}`} onClick={() => setTab('equipo')}>
-          <span className="mobile-nav-icon">♟</span><span className="mobile-nav-label">Equipo</span>
-        </button>
+        <NavItem active={tab === 'equipo'} onClick={() => setTab('equipo')} icon="♟" label="Equipo" />
         {isCotizador && (
-          <button className={`nav-item ${tab === 'faltantes' ? 'active' : ''}`} onClick={() => setTab('faltantes')}>
-            <span className="mobile-nav-icon">!</span><span className="mobile-nav-label">Faltantes</span>
-          </button>
+          <NavItem active={tab === 'faltantes'} onClick={() => setTab('faltantes')} icon="!" label="Faltantes" />
         )}
         {isCotizador && (
-          <button className={`nav-item ${tab === 'apartados' ? 'active' : ''}`} onClick={() => setTab('apartados')}>
-            <span className="mobile-nav-icon">▢</span><span className="mobile-nav-label">Apartados</span>
-          </button>
+          <NavItem active={tab === 'apartados'} onClick={() => setTab('apartados')} icon="▢" label="Apartados" />
         )}
         {isCotizador && (
-          <button className={`nav-item ${tab === 'actividad' ? 'active' : ''}`} onClick={() => setTab('actividad')}>
-            <span className="mobile-nav-icon">↗</span><span className="mobile-nav-label">Actividad</span>
-          </button>
+          <NavItem active={tab === 'actividad'} onClick={() => setTab('actividad')} icon="↗" label="Actividad" />
         )}
         <div className="sidebar-footer">
           <div className="who">{activeWorker ? activeWorker.nombre : profile.nombre}</div>
@@ -287,103 +294,107 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
             <button type="button" className="mobile-account-btn danger" onClick={onLogout}>Salir</button>
           </div>
         </div>
-        {tab === 'tablero' && (
-          <React.Fragment>
-            <div className="main-header">
-              <h2>Tablero de cotizaciones</h2>
-              {botonNuevo}
-            </div>
-            {loading ? <div className="loading">Cargando…</div> : <Board cotizaciones={cotizaciones} onOpen={setOpenId} canDrag={true} onMoveEstado={moverEstado} />}
-          </React.Fragment>
-        )}
-        {tab === 'proveedores' && isCotizador && (
-          <React.Fragment>
-            <div className="main-header">
-              <h2>Proveedores</h2>
-              {botonNuevo}
-            </div>
-            <ProveedoresScreen
-              activeWorker={activeWorker}
-              proveedores={proveedores}
-              reload={loadProveedores}
-              showForm={showNuevo}
-              onCloseForm={() => setShowNuevo(false)}
-            />
-          </React.Fragment>
-        )}
-        {tab === 'equipo' && (
-          <React.Fragment>
-            <div className="main-header">
-              <h2>Equipo</h2>
-              {botonNuevo}
-            </div>
-            <TrabajadoresScreen
-              profile={profile}
-              activeWorker={activeWorker}
-              trabajadoresCyber={trabajadoresCyber}
-              trabajadoresOcampo={trabajadoresOcampo}
-              reload={isCotizador ? loadTrabajadoresCyber : loadTrabajadoresOcampo}
-              log={log}
-              showForm={showNuevo}
-              onCloseForm={() => setShowNuevo(false)}
-            />
-          </React.Fragment>
-        )}
-        {tab === 'faltantes' && isCotizador && (
-          <React.Fragment>
-            <div className="main-header">
-              <h2>Faltantes en tienda</h2>
-              {botonNuevo}
-            </div>
-            <FaltantesScreen
-              profile={profile}
-              activeWorker={activeWorker}
-              faltantes={faltantes}
-              reload={loadFaltantes}
-              log={log}
-              showForm={showNuevo}
-              onCloseForm={() => setShowNuevo(false)}
-            />
-          </React.Fragment>
-        )}
-        {tab === 'apartados' && isCotizador && (
-          <React.Fragment>
-            <div className="main-header">
-              <h2>Apartados en tienda</h2>
-              {botonNuevo}
-            </div>
-            <ApartadosScreen
-              activeWorker={activeWorker}
-              trabajadoresCyber={trabajadoresCyber}
-              apartados={apartados}
-              reload={loadApartados}
-              log={log}
-              showForm={showNuevo}
-              onCloseForm={() => setShowNuevo(false)}
-            />
-          </React.Fragment>
-        )}
-        {tab === 'actividad' && isCotizador && (
-          <React.Fragment>
-            <div className="main-header">
-              <h2>Actividad</h2>
-              {botonNuevo}
-            </div>
-            <ActividadScreen
-              profile={profile}
-              activeWorker={activeWorker}
-              actividad={actividad}
-              reload={loadActividad}
-              log={log}
-              showForm={showNuevo}
-              onCloseForm={() => setShowNuevo(false)}
-            />
-          </React.Fragment>
-        )}
+        <AnimatePresence mode="wait">
+          {tab === 'tablero' && (
+            <motion.div key="tablero" {...tabFade}>
+              <div className="main-header">
+                <h2>Tablero de cotizaciones</h2>
+                {botonNuevo}
+              </div>
+              {loading ? <div className="loading">Cargando…</div> : <Board cotizaciones={cotizaciones} onOpen={setOpenId} canDrag={true} onMoveEstado={moverEstado} />}
+            </motion.div>
+          )}
+          {tab === 'proveedores' && isCotizador && (
+            <motion.div key="proveedores" {...tabFade}>
+              <div className="main-header">
+                <h2>Proveedores</h2>
+                {botonNuevo}
+              </div>
+              <ProveedoresScreen
+                activeWorker={activeWorker}
+                proveedores={proveedores}
+                reload={loadProveedores}
+                showForm={showNuevo}
+                onCloseForm={() => setShowNuevo(false)}
+              />
+            </motion.div>
+          )}
+          {tab === 'equipo' && (
+            <motion.div key="equipo" {...tabFade}>
+              <div className="main-header">
+                <h2>Equipo</h2>
+                {botonNuevo}
+              </div>
+              <TrabajadoresScreen
+                profile={profile}
+                activeWorker={activeWorker}
+                trabajadoresCyber={trabajadoresCyber}
+                trabajadoresOcampo={trabajadoresOcampo}
+                reload={isCotizador ? loadTrabajadoresCyber : loadTrabajadoresOcampo}
+                log={log}
+                showForm={showNuevo}
+                onCloseForm={() => setShowNuevo(false)}
+              />
+            </motion.div>
+          )}
+          {tab === 'faltantes' && isCotizador && (
+            <motion.div key="faltantes" {...tabFade}>
+              <div className="main-header">
+                <h2>Faltantes en tienda</h2>
+                {botonNuevo}
+              </div>
+              <FaltantesScreen
+                profile={profile}
+                activeWorker={activeWorker}
+                faltantes={faltantes}
+                reload={loadFaltantes}
+                log={log}
+                showForm={showNuevo}
+                onCloseForm={() => setShowNuevo(false)}
+              />
+            </motion.div>
+          )}
+          {tab === 'apartados' && isCotizador && (
+            <motion.div key="apartados" {...tabFade}>
+              <div className="main-header">
+                <h2>Apartados en tienda</h2>
+                {botonNuevo}
+              </div>
+              <ApartadosScreen
+                activeWorker={activeWorker}
+                trabajadoresCyber={trabajadoresCyber}
+                apartados={apartados}
+                reload={loadApartados}
+                log={log}
+                showForm={showNuevo}
+                onCloseForm={() => setShowNuevo(false)}
+              />
+            </motion.div>
+          )}
+          {tab === 'actividad' && isCotizador && (
+            <motion.div key="actividad" {...tabFade}>
+              <div className="main-header">
+                <h2>Actividad</h2>
+                {botonNuevo}
+              </div>
+              <ActividadScreen
+                profile={profile}
+                activeWorker={activeWorker}
+                actividad={actividad}
+                reload={loadActividad}
+                log={log}
+                showForm={showNuevo}
+                onCloseForm={() => setShowNuevo(false)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
+      <AnimatePresence>
       {openId && (
         <CotizacionDetail
+          key="cotizacion-detail"
           id={openId}
           profile={profile}
           activeWorker={activeWorker}
@@ -396,8 +407,11 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           log={log}
         />
       )}
+      </AnimatePresence>
+      <AnimatePresence>
       {showNuevo && tab === 'tablero' && (
         <NuevaCotizacionModal
+          key="nueva-cotizacion"
           profile={profile}
           activeWorker={activeWorker}
           escuelasSugeridas={escuelasSugeridas}
@@ -411,6 +425,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           }}
         />
       )}
+      </AnimatePresence>
     </div>
   );
 }

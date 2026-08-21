@@ -5,6 +5,7 @@ import ApartadoDetail from './ApartadoDetail.jsx';
 import { useUI } from './UIProvider.jsx';
 import Pager, { usePager } from './Pager.jsx';
 import FormModal from './FormModal.jsx';
+import { AnimatePresence } from './Motion.jsx';
 
 const POR_PAGINA = 6;
 
@@ -271,8 +272,10 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
         })}
       </div>
 
+      <AnimatePresence>
       {showForm && (
         <FormModal
+          key="form-apartado"
           title="Nuevo apartado"
           subtitle="Apartado / pedido hecho directamente en tienda."
           onClose={onCloseForm}
@@ -332,9 +335,12 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
           </form>
         </FormModal>
       )}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {openId && (
         <ApartadoDetail
+          key="apartado-detail"
           id={openId}
           trabajadoresCyber={trabajadoresCyber}
           onClose={() => setOpenId(null)}
@@ -342,6 +348,7 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
           log={log}
         />
       )}
+      </AnimatePresence>
     </div>
   );
 }

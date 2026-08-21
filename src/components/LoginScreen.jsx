@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { login, S } from '../supabaseClient.js';
+import { motion, AnimatePresence } from './Motion.jsx';
 
 export default function LoginScreen({ onLogin, onReconfigure }) {
   const [username, setUsername] = useState('');
@@ -23,10 +24,27 @@ export default function LoginScreen({ onLogin, onReconfigure }) {
 
   return (
     <div className="centered-screen">
-      <div className="auth-card">
+      <motion.div
+        className="auth-card"
+        initial={{ opacity: 0, y: 18, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+      >
         <h1>Iniciar sesión</h1>
         <p className="sub">Cotizaciones y encargos del equipo.</p>
-        {err && <div className="err">{err}</div>}
+        <AnimatePresence>
+          {err && (
+            <motion.div
+              className="err"
+              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              {err}
+            </motion.div>
+          )}
+        </AnimatePresence>
         <form onSubmit={submit}>
           <div className="field">
             <label>Usuario</label>
@@ -43,9 +61,14 @@ export default function LoginScreen({ onLogin, onReconfigure }) {
             <label>Contraseña</label>
             <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-          <button className="btn btn-primary btn-block" disabled={busy}>
+          <motion.button
+            className="btn btn-primary btn-block"
+            disabled={busy}
+            whileHover={{ scale: busy ? 1 : 1.015 }}
+            whileTap={{ scale: busy ? 1 : 0.985 }}
+          >
             {busy ? 'Entrando…' : 'Entrar'}
-          </button>
+          </motion.button>
         </form>
         {!S.usingEnv && (
           <div style={{ marginTop: 14, textAlign: 'center' }}>
@@ -54,7 +77,7 @@ export default function LoginScreen({ onLogin, onReconfigure }) {
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { MotionOverlay, MotionModal } from './Motion.jsx';
 
 /**
  * Ventana genérica para "agregar algo nuevo".
@@ -22,14 +23,14 @@ export default function FormModal({ title, subtitle, onClose, maxWidth = 460, ch
   }, [onClose]);
 
   return (
-    <div
-      className="modal-overlay nueva-cotizacion-overlay app-form-overlay"
+    <MotionOverlay
+      className="nueva-cotizacion-overlay app-form-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="modal nueva-cotizacion-modal app-form-modal"
+      <MotionModal
+        className="nueva-cotizacion-modal app-form-modal"
         style={{ maxWidth }}
         role="dialog"
         aria-modal="true"
@@ -47,7 +48,7 @@ export default function FormModal({ title, subtitle, onClose, maxWidth = 460, ch
           </p>
         )}
         {children}
-      </div>
-    </div>
+      </MotionModal>
+    </MotionOverlay>
   );
 }

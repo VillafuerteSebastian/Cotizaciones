@@ -4,6 +4,7 @@ import { fmtDateTime } from '../utils.js';
 import Pager, { usePager } from './Pager.jsx';
 import { useUI } from './UIProvider.jsx';
 import FormModal from './FormModal.jsx';
+import { AnimatePresence } from './Motion.jsx';
 
 // 20 artículos por página. La tabla NO tiene scroll propio: la página entera
 // crece y se hace scroll normal hacia abajo (clase `no-inner-scroll`).
@@ -148,8 +149,10 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
         <TablaFaltantes titulo="Resueltos" items={resueltos} onToggle={toggleResuelto} onDelete={del} vacio="Aún no hay nada resuelto." />
       </div>
 
+      <AnimatePresence>
       {showForm && (
         <FormModal
+          key="form-faltante"
           title="Nuevo faltante"
           subtitle={activeWorker ? `Reporta: ${activeWorker.nombre}` : null}
           onClose={() => {
@@ -191,6 +194,7 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
           </form>
         </FormModal>
       )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MotionOverlay, motion, AnimatePresence } from './Motion.jsx';
 
 // Miniatura de imagen que, al hacer clic, se abre en grande con opción de
 // descargarla. Se usa en cualquier parte de la app donde se muestre una
@@ -29,47 +30,52 @@ export function ImageThumb({ src, alt, size = 46, style, radius = 6 }) {
           ...style,
         }}
       />
-      {open && (
-        <div
-          className="modal-overlay"
-          style={{ zIndex: 300 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (e.target === e.currentTarget) setOpen(false);
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 14,
-              maxWidth: '92vw',
-              maxHeight: '92vh',
+      <AnimatePresence>
+        {open && (
+          <MotionOverlay
+            style={{ zIndex: 300 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (e.target === e.currentTarget) setOpen(false);
             }}
           >
-            <img
-              src={src}
-              alt={alt || 'imagen'}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.14 } }}
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 14,
                 maxWidth: '92vw',
-                maxHeight: '78vh',
-                borderRadius: 12,
-                boxShadow: '0 20px 60px rgba(0,0,0,.45)',
-                background: '#fff',
+                maxHeight: '92vh',
               }}
-            />
-            <div className="action-row" style={{ justifyContent: 'center' }}>
-              <a href={src} download={`${nombreArchivo}.jpg`} className="btn btn-primary btn-sm">
-                Descargar
-              </a>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            >
+              <img
+                src={src}
+                alt={alt || 'imagen'}
+                style={{
+                  maxWidth: '92vw',
+                  maxHeight: '78vh',
+                  borderRadius: 12,
+                  boxShadow: '0 20px 60px rgba(0,0,0,.45)',
+                  background: '#fff',
+                }}
+              />
+              <div className="action-row" style={{ justifyContent: 'center' }}>
+                <a href={src} download={`${nombreArchivo}.jpg`} className="btn btn-primary btn-sm">
+                  Descargar
+                </a>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>
+                  Cerrar
+                </button>
+              </div>
+            </motion.div>
+          </MotionOverlay>
+        )}
+      </AnimatePresence>
     </React.Fragment>
   );
 }

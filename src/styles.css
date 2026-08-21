@@ -303,24 +303,8 @@ button:disabled {
 
   backdrop-filter: blur(18px);
 
-  animation: auth-enter .35s ease;
-}
-
-@keyframes auth-enter {
-
-  from {
-    opacity: 0;
-    transform:
-      translateY(14px)
-      scale(.98);
-  }
-
-  to {
-    opacity: 1;
-    transform:
-      translateY(0)
-      scale(1);
-  }
+  /* La entrada de esta tarjeta ahora la anima Framer Motion (LoginScreen.jsx),
+     no CSS, para que combine con el resto de animaciones "premium" de la app. */
 }
 
 
@@ -774,31 +758,37 @@ button:disabled {
 }
 
 .nav-item.active {
-
   color: #fff;
-
-  background:
-    linear-gradient(
-      135deg,
-      #0057C8,
-      #004AAD
-    );
-
-  box-shadow:
-    0 5px 14px
-    rgba(0,74,173,.28);
 }
 
 .nav-item.active:hover {
-
   transform: none;
+}
 
+/* Fondo del ítem de navegación activo: en vez de aparecer/desaparecer con
+   la clase, es un elemento animado por Framer Motion (layoutId, AppShell.jsx)
+   que se desliza de una pestaña a otra. */
+.nav-item-active-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
   background:
     linear-gradient(
       135deg,
       #0057C8,
       #004AAD
     );
+  box-shadow:
+    0 5px 14px
+    rgba(0,74,173,.28);
+  pointer-events: none;
+}
+
+.mobile-nav-icon,
+.mobile-nav-label {
+  position: relative;
+  z-index: 1;
 }
 
 
@@ -1381,29 +1371,8 @@ button:disabled {
   box-shadow:
     var(--shadow-lg);
 
-  animation:
-    modal-enter .20s ease;
-}
-
-@keyframes modal-enter {
-
-  from {
-
-    opacity: 0;
-
-    transform:
-      translateY(12px)
-      scale(.98);
-  }
-
-  to {
-
-    opacity: 1;
-
-    transform:
-      translateY(0)
-      scale(1);
-  }
+  /* La entrada/salida de las ventanas modales ahora la anima Framer Motion
+     (MotionModal en Motion.jsx), no CSS. */
 }
 
 .modal h2 {
@@ -1946,20 +1915,7 @@ tbody tr:last-child td {
 
   pointer-events: auto;
 
-  animation: toast-enter .22s ease;
-}
-
-@keyframes toast-enter {
-
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(.97);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  /* Entrada/salida animada por Framer Motion (UIProvider.jsx), no CSS. */
 }
 
 .toast-info {
@@ -2905,15 +2861,6 @@ textarea:focus-visible {
 
   .sidebar .nav-item.active {
     color: #fff;
-    background:
-      linear-gradient(
-        145deg,
-        var(--mobile-blue-2),
-        var(--mobile-blue)
-      );
-
-    box-shadow:
-      0 6px 18px rgba(0,74,173,.34);
   }
 
   .sidebar .nav-item:hover {
@@ -3809,14 +3756,6 @@ textarea:focus-visible {
 
   .sidebar .nav-item.active {
     color: #fff;
-    background:
-      linear-gradient(
-        145deg,
-        var(--app-blue-2),
-        var(--app-blue)
-      );
-
-    box-shadow: 0 6px 18px rgba(0,74,173,.32);
   }
 
   .sidebar .nav-item.active::after {

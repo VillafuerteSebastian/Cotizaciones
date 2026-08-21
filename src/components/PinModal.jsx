@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MotionOverlay, MotionModal } from './Motion.jsx';
 
 export default function PinModal({ title, subtitle, confirmLabel = 'Confirmar', onSubmit, onCancel }) {
   const [pin, setPin] = useState('');
@@ -20,13 +21,12 @@ export default function PinModal({ title, subtitle, confirmLabel = 'Confirmar', 
   };
 
   return (
-    <div
-      className="modal-overlay"
+    <MotionOverlay
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div className="modal" style={{ maxWidth: 340 }}>
+      <MotionModal style={{ maxWidth: 340 }}>
         <div className="modal-top">
           <h2>{title}</h2>
           <button className="x-btn" onClick={onCancel}>
@@ -51,7 +51,7 @@ export default function PinModal({ title, subtitle, confirmLabel = 'Confirmar', 
             {busy ? 'Verificando…' : confirmLabel}
           </button>
         </form>
-      </div>
-    </div>
+      </MotionModal>
+    </MotionOverlay>
   );
 }
