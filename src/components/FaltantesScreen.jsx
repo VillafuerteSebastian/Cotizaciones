@@ -3,9 +3,14 @@ import { api } from '../supabaseClient.js';
 import { fmtDateTime } from '../utils.js';
 import Pager, { usePager } from './Pager.jsx';
 import { useUI } from './UIProvider.jsx';
+import FormModal from './FormModal.jsx';
+
+// 20 artículos por página. La tabla NO tiene scroll propio: la página entera
+// crece y se hace scroll normal hacia abajo (clase `no-inner-scroll`).
+const POR_PAGINA = 20;
 
 function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
-  const { pageItems, page, setPage, totalPages } = usePager(items, 20);
+  const { pageItems, page, setPage, totalPages } = usePager(items, POR_PAGINA);
   return (
     <div className="cat-card" style={{ marginBottom: 0 }}>
       <div className="section-label">
@@ -14,7 +19,7 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
       {items.length === 0 ? (
         <div className="empty-col">{vacio}</div>
       ) : (
-        <div className="table-wrap table-excel">
+        <div className="table-wrap table-excel no-inner-scroll">
         <table className="table-mobile-cards">
           <thead>
             <tr>
@@ -53,8 +58,8 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
   );
 }
 
-export default function FaltantesScreen({ profile, activeWorker, faltantes, reload, log }) {
-  const { confirmar } = useUI();
+export default function FaltantesScreen({ profile, activeWorker, faltantes, reload, log, showForm, onCloseForm }) {
+  const { confirmar, toast } = useUI();
   const [producto, setProducto] = useState('');
   const [notas, setNotas] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,35 +70,53 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
     return faltantes.find((f) => f.producto.trim().toLowerCase() === p) || null;
   }, [producto, faltantes]);
 
+  const limpiar = () => {
+    setProducto('');
+    setNotas('');
+  };
+
   const add = async (e) => {
     e.preventDefault();
     if (!producto.trim() || coincidencia) return;
     setBusy(true);
-    await api.post('productos_faltantes', {
-      producto: producto.trim(),
-      notas: notas.trim() || null,
-      creado_por: profile.id,
-    });
-    await log('Agregó faltante', producto.trim());
-    setProducto('');
-    setNotas('');
-    await reload();
-    setBusy(false);
+    try {
+      const guardado = producto.trim();
+      await api.post('productos_faltantes', {
+        producto: guardado,
+        notas: notas.trim() || null,
+        creado_por: profile.id,
+      });
+      await log('Agregó faltante', guardado);
+      limpiar();
+      await reload();
+      onCloseForm();
+      toast(`"${guardado}" se agregó a faltantes.`, 'success');
+    } catch (ex) {
+      toast('No se pudo agregar: ' + ex.message, 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const marcarFaltaOtraVez = async (f) => {
     setBusy(true);
-    await api.patch(`productos_faltantes?id=eq.${f.id}`, {
-      resuelto: false,
-      veces_reportado: (f.veces_reportado || 1) + 1,
-      ultima_vez: new Date().toISOString(),
-      notas: notas.trim() ? notas.trim() : f.notas,
-    });
-    await log('Reportó faltante otra vez', f.producto);
-    setProducto('');
-    setNotas('');
-    await reload();
-    setBusy(false);
+    try {
+      await api.patch(`productos_faltantes?id=eq.${f.id}`, {
+        resuelto: false,
+        veces_reportado: (f.veces_reportado || 1) + 1,
+        ultima_vez: new Date().toISOString(),
+        notas: notas.trim() ? notas.trim() : f.notas,
+      });
+      await log('Reportó faltante otra vez', f.producto);
+      limpiar();
+      await reload();
+      onCloseForm();
+      toast(`"${f.producto}" se reportó otra vez.`, 'success');
+    } catch (ex) {
+      toast('No se pudo actualizar: ' + ex.message, 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const toggleResuelto = async (f) => {
@@ -116,47 +139,58 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
 
   return (
     <div>
-      <div className="auth-card" style={{ maxWidth: 480, marginBottom: 22, padding: 20 }}>
-        <div className="section-label" style={{ marginBottom: 12 }}>
-          Agregar producto faltante
-        </div>
-        <form onSubmit={add}>
-          <div className="field">
-            <label>Producto</label>
-            <input required value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Cinta métrica 5m" />
-          </div>
-          <div className="field">
-            <label>Notas (opcional)</label>
-            <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Detalle, marca, cuánto se necesita…" />
-          </div>
+      <p className="hint" style={{ marginBottom: 16 }}>
+        {POR_PAGINA} artículos por página. La lista completa se recorre haciendo scroll normal de la página.
+      </p>
 
-          {coincidencia ? (
-            <div className="err" style={{ background: '#FFF6E5', color: '#8A5A00' }}>
-              "{coincidencia.producto}" ya está en la lista
-              {coincidencia.veces_reportado > 1 ? ` (reportado ${coincidencia.veces_reportado} veces)` : ''}
-              {coincidencia.resuelto ? ', y estaba marcado como resuelto.' : ', todavía está pendiente.'}
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                style={{ display: 'block', marginTop: 8 }}
-                disabled={busy}
-                onClick={() => marcarFaltaOtraVez(coincidencia)}
-              >
-                {busy ? 'Guardando…' : 'Falta otra vez'}
-              </button>
-            </div>
-          ) : (
-            <button className="btn btn-primary" disabled={busy || !producto.trim()}>
-              {busy ? 'Guardando…' : 'Agregar a la lista'}
-            </button>
-          )}
-        </form>
-      </div>
-
-      <div className="parallel-grid">
+      <div className="parallel-grid faltantes-grid">
         <TablaFaltantes titulo="Pendientes" items={pendientes} onToggle={toggleResuelto} onDelete={del} vacio="Nada pendiente 🎉" />
         <TablaFaltantes titulo="Resueltos" items={resueltos} onToggle={toggleResuelto} onDelete={del} vacio="Aún no hay nada resuelto." />
       </div>
+
+      {showForm && (
+        <FormModal
+          title="Nuevo faltante"
+          subtitle={activeWorker ? `Reporta: ${activeWorker.nombre}` : null}
+          onClose={() => {
+            limpiar();
+            onCloseForm();
+          }}
+          maxWidth={440}
+        >
+          <form onSubmit={add}>
+            <div className="field">
+              <label>Producto</label>
+              <input required autoFocus value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Cinta métrica 5m" />
+            </div>
+            <div className="field">
+              <label>Notas (opcional)</label>
+              <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Detalle, marca, cuánto se necesita…" />
+            </div>
+
+            {coincidencia ? (
+              <div className="err" style={{ background: '#FFF6E5', color: '#8A5A00' }}>
+                "{coincidencia.producto}" ya está en la lista
+                {coincidencia.veces_reportado > 1 ? ` (reportado ${coincidencia.veces_reportado} veces)` : ''}
+                {coincidencia.resuelto ? ', y estaba marcado como resuelto.' : ', todavía está pendiente.'}
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'block', marginTop: 8 }}
+                  disabled={busy}
+                  onClick={() => marcarFaltaOtraVez(coincidencia)}
+                >
+                  {busy ? 'Guardando…' : 'Falta otra vez'}
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-primary btn-block" disabled={busy || !producto.trim()}>
+                {busy ? 'Guardando…' : 'Agregar a la lista'}
+              </button>
+            )}
+          </form>
+        </FormModal>
+      )}
     </div>
   );
 }

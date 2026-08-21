@@ -4,6 +4,7 @@ import { ESTADOS_APARTADO, fmtMoney, fmtDateTime } from '../utils.js';
 import ApartadoDetail from './ApartadoDetail.jsx';
 import { useUI } from './UIProvider.jsx';
 import Pager, { usePager } from './Pager.jsx';
+import FormModal from './FormModal.jsx';
 
 const POR_PAGINA = 6;
 
@@ -104,8 +105,8 @@ function ApartadoColumna({
   );
 }
 
-export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apartados, reload, log }) {
-  const { confirmar } = useUI();
+export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apartados, reload, log, showForm, onCloseForm }) {
+  const { confirmar, toast } = useUI();
   const [cliente, setCliente] = useState('');
   const [telefono, setTelefono] = useState('');
   const [numeroApartado, setNumeroApartado] = useState('');
@@ -133,21 +134,7 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
 
   const nombreTrabajador = (id) => trabajadoresCyber.find((t) => t.id === id)?.nombre || null;
 
-  const add = async (e) => {
-    e.preventDefault();
-    if (!cliente.trim() || !producto.trim()) return;
-    setBusy(true);
-    await api.post('apartados', {
-      cliente_nombre: cliente.trim(),
-      telefono: telefono.trim() || null,
-      numero_apartado: numeroApartado.trim() || null,
-      producto: producto.trim(),
-      cantidad: Number(cantidad) || 1,
-      precio: precio === '' ? null : Number(precio),
-      notas: notas.trim() || null,
-      registrado_por_trabajador_id: registradoPor || null,
-    });
-    await log('Agregó apartado', `${producto.trim()} · ${cliente.trim()}`);
+  const limpiar = () => {
     setCliente('');
     setTelefono('');
     setNumeroApartado('');
@@ -155,8 +142,34 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
     setCantidad(1);
     setPrecio('');
     setNotas('');
-    await reload();
-    setBusy(false);
+  };
+
+  const add = async (e) => {
+    e.preventDefault();
+    if (!cliente.trim() || !producto.trim()) return;
+    setBusy(true);
+    try {
+      await api.post('apartados', {
+        cliente_nombre: cliente.trim(),
+        telefono: telefono.trim() || null,
+        numero_apartado: numeroApartado.trim() || null,
+        producto: producto.trim(),
+        cantidad: Number(cantidad) || 1,
+        precio: precio === '' ? null : Number(precio),
+        notas: notas.trim() || null,
+        registrado_por_trabajador_id: registradoPor || null,
+      });
+      await log('Agregó apartado', `${producto.trim()} · ${cliente.trim()}`);
+      const guardado = producto.trim();
+      limpiar();
+      await reload();
+      onCloseForm();
+      toast(`Apartado de "${guardado}" registrado.`, 'success');
+    } catch (ex) {
+      toast('No se pudo registrar: ' + ex.message, 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const cambiarEstado = async (a, nuevoEstado) => {
@@ -204,64 +217,6 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
 
   return (
     <div>
-      <div className="auth-card" style={{ maxWidth: 560, marginBottom: 22, padding: 20 }}>
-        <div className="section-label" style={{ marginBottom: 12 }}>
-          Registrar apartado / pedido hecho en tienda
-        </div>
-        <form onSubmit={add}>
-          <div className="row">
-            <div className="field">
-              <label>Cliente</label>
-              <input required value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nombre del cliente" />
-            </div>
-            <div className="field">
-              <label>Teléfono (opcional)</label>
-              <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="8888-8888" />
-            </div>
-          </div>
-          <div className="field">
-            <label>Número de apartado (facturación)</label>
-            <input
-              value={numeroApartado}
-              onChange={(e) => setNumeroApartado(e.target.value)}
-              placeholder="Ej: el número que da el sistema de facturación"
-            />
-          </div>
-          <div className="field">
-            <label>Producto</label>
-            <input required value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Mochila escolar azul" />
-          </div>
-          <div className="row">
-            <div className="field">
-              <label>Cantidad</label>
-              <input type="number" min="1" step="any" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Precio (opcional)</label>
-              <input type="number" min="0" step="any" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="₡" />
-            </div>
-          </div>
-          <div className="field">
-            <label>Registrado por</label>
-            <select value={registradoPor} onChange={(e) => setRegistradoPor(e.target.value)}>
-              <option value="">— Selecciona —</option>
-              {trabajadoresCyber.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Notas (opcional)</label>
-            <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Detalle, talla, color…" />
-          </div>
-          <button className="btn btn-primary" disabled={busy || !cliente.trim() || !producto.trim()}>
-            {busy ? 'Guardando…' : 'Registrar apartado'}
-          </button>
-        </form>
-      </div>
-
       <p className="hint" style={{ marginBottom: 16 }}>
         Solo Cyber ve este control. Arrastra la tarjeta a otra columna o usa los botones. Máximo {POR_PAGINA} por página en
         cada columna, del más nuevo al más viejo.
@@ -315,6 +270,68 @@ export default function ApartadosScreen({ activeWorker, trabajadoresCyber, apart
           );
         })}
       </div>
+
+      {showForm && (
+        <FormModal
+          title="Nuevo apartado"
+          subtitle="Apartado / pedido hecho directamente en tienda."
+          onClose={onCloseForm}
+          maxWidth={480}
+        >
+          <form onSubmit={add}>
+            <div className="field">
+              <label>Cliente</label>
+              <input required autoFocus value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nombre del cliente" />
+            </div>
+            <div className="row">
+              <div className="field">
+                <label>Teléfono (opcional)</label>
+                <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="8888-8888" />
+              </div>
+              <div className="field">
+                <label>N.º de apartado</label>
+                <input
+                  value={numeroApartado}
+                  onChange={(e) => setNumeroApartado(e.target.value)}
+                  placeholder="Facturación"
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label>Producto</label>
+              <input required value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Mochila escolar azul" />
+            </div>
+            <div className="row">
+              <div className="field">
+                <label>Cantidad</label>
+                <input type="number" min="1" step="any" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Precio (opcional)</label>
+                <input type="number" min="0" step="any" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="₡" />
+              </div>
+            </div>
+            <div className="field">
+              <label>Registrado por</label>
+              <select value={registradoPor} onChange={(e) => setRegistradoPor(e.target.value)}>
+                <option value="">— Selecciona —</option>
+                {trabajadoresCyber.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Notas (opcional)</label>
+              <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Detalle, talla, color…" />
+            </div>
+            <button className="btn btn-primary btn-block" disabled={busy || !cliente.trim() || !producto.trim()}>
+              {busy ? 'Guardando…' : 'Registrar apartado'}
+            </button>
+          </form>
+        </FormModal>
+      )}
 
       {openId && (
         <ApartadoDetail

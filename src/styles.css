@@ -4927,3 +4927,413 @@ textarea:focus-visible {
     top: -18px;
   }
 }
+
+
+/* =========================================================
+   BOTÓN "+" DEL ENCABEZADO (igual en todos los módulos)
+   En escritorio muestra el texto completo; en móvil se
+   convierte en un círculo con "+", como una app real.
+   ========================================================= */
+
+.header-action {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.header-action .header-action-icon {
+  display: none;
+}
+
+@media (max-width: 700px) {
+
+  .header-action {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    min-width: 44px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border-radius: 14px;
+
+    font-size: 23px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .header-action .header-action-label {
+    display: none;
+  }
+
+  .header-action .header-action-icon {
+    display: block;
+    margin-top: -2px;
+  }
+}
+
+
+/* =========================================================
+   FALTANTES — SIN SCROLL DENTRO DE LA TABLA
+   La tabla crece todo lo que necesite y el scroll se hace
+   con la página, no dentro de un recuadro.
+   ========================================================= */
+
+.table-wrap.no-inner-scroll,
+.cat-card .table-wrap.no-inner-scroll {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.table-wrap.no-inner-scroll::after {
+  display: none;
+}
+
+/* Pendientes / Resueltos lado a lado solo cuando de verdad caben. */
+@media (max-width: 1100px) {
+
+  .parallel-grid.faltantes-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* =========================================================
+   ACTIVIDAD — CALENDARIO + MENSAJES
+   ========================================================= */
+
+.actividad-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.caja-panel,
+.registros-panel {
+  min-width: 0;
+
+  padding: 18px;
+
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+
+  box-shadow: var(--shadow-sm);
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+
+  margin-bottom: 16px;
+}
+
+.panel-head-text {
+  min-width: 0;
+}
+
+.panel-head-side {
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel-total {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-cal-hoy {
+  height: 26px;
+  padding: 0 9px;
+
+  color: #475467;
+  background: #fff;
+  border: 1px solid var(--line-dark);
+  border-radius: 7px;
+
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.caja-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.caja-feed {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 14px;
+
+  background: #FAFBFD;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.caja-feed-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+
+  margin-bottom: 12px;
+}
+
+.caja-feed-total {
+  flex: 0 0 auto;
+
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+
+  .caja-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ---------- Lista de mensajes (reemplaza las tablas) ---------- */
+
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  padding: 11px 12px;
+
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.feed-avatar {
+  flex: 0 0 30px;
+
+  width: 30px;
+  height: 30px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #004AAD;
+  background: #EDF5FF;
+  border-radius: 10px;
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.feed-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.feed-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.feed-accion {
+  min-width: 0;
+
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -.01em;
+}
+
+.feed-monto {
+  flex: 0 0 auto;
+
+  color: #0B7A3B;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.feed-detalle {
+  margin: 3px 0 0;
+
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.4;
+
+  overflow-wrap: anywhere;
+}
+
+.feed-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 5px;
+
+  color: #8A96A6;
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.feed-foot span + span::before {
+  content: '·';
+  margin-right: 8px;
+}
+
+
+/* ---------- Chips de categoría (escritorio y móvil) ---------- */
+
+.act-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+
+  margin-bottom: 14px;
+}
+
+.act-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  min-height: 34px;
+  padding: 6px 11px;
+
+  color: #52637A;
+  background: #fff;
+  border: 1px solid #E4EAF2;
+  border-radius: 999px;
+
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.act-chip:hover:not(.active) {
+  border-color: #C9D8EC;
+  background: #F5F9FF;
+}
+
+.act-chip b {
+  min-width: 20px;
+  padding: 2px 6px;
+
+  color: #004AAD;
+  background: #EDF5FF;
+  border-radius: 999px;
+
+  font-size: 10px;
+  text-align: center;
+}
+
+.act-chip.active {
+  color: #fff;
+  background: linear-gradient(145deg, #0057C8, #004AAD);
+  border-color: #004AAD;
+
+  box-shadow: 0 5px 14px rgba(0, 74, 173, .20);
+}
+
+.act-chip.active b {
+  color: #004AAD;
+  background: #fff;
+}
+
+
+@media (max-width: 700px) {
+
+  .actividad-screen {
+    gap: 14px;
+  }
+
+  .caja-panel,
+  .registros-panel {
+    padding: 14px;
+  }
+
+  .panel-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+
+    margin-bottom: 13px;
+  }
+
+  .panel-head-side {
+    justify-content: space-between;
+  }
+
+  .caja-feed {
+    padding: 12px;
+  }
+
+  .act-chips {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .act-chip {
+    min-height: 42px;
+    justify-content: space-between;
+    border-radius: 13px;
+    font-size: 10.5px;
+  }
+
+  .act-chip span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .feed-item {
+    padding: 10px;
+  }
+
+  .feed-accion {
+    font-size: 12.5px;
+  }
+}
+
+@media (max-width: 360px) {
+
+  .act-chips {
+    grid-template-columns: 1fr;
+  }
+}

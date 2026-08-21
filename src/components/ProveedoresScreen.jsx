@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../supabaseClient.js';
 import { useUI } from './UIProvider.jsx';
+import FormModal from './FormModal.jsx';
 
 function ProveedorEditForm({ p, onCancel, onSaved }) {
   const { toast } = useUI();
@@ -68,7 +69,7 @@ function ProveedorEditForm({ p, onCancel, onSaved }) {
   );
 }
 
-export default function ProveedoresScreen({ activeWorker, proveedores, reload }) {
+export default function ProveedoresScreen({ activeWorker, proveedores, reload, showForm, onCloseForm }) {
   const { toast, confirmar } = useUI();
   const isAdmin = Boolean(activeWorker && activeWorker.es_administrador);
   const [nombre, setNombre] = useState('');
@@ -83,10 +84,13 @@ export default function ProveedoresScreen({ activeWorker, proveedores, reload })
     setBusy(true);
     try {
       await api.post('proveedores', { nombre: nombre.trim(), contacto: contacto.trim() || null, telefono: telefono.trim() || null });
+      const guardado = nombre.trim();
       setNombre('');
       setContacto('');
       setTelefono('');
       await reload();
+      onCloseForm();
+      toast(`Proveedor "${guardado}" agregado.`, 'success');
     } catch (ex) {
       toast('No se pudo agregar: ' + ex.message, 'error');
     } finally {
@@ -110,32 +114,7 @@ export default function ProveedoresScreen({ activeWorker, proveedores, reload })
 
   return (
     <div>
-      {isAdmin ? (
-        <div className="auth-card" style={{ maxWidth: 520, marginBottom: 22, padding: 20 }}>
-          <div className="section-label" style={{ marginBottom: 12 }}>
-            Agregar proveedor
-          </div>
-          <form onSubmit={add}>
-            <div className="row">
-              <div className="field">
-                <label>Nombre</label>
-                <input required value={nombre} onChange={(e) => setNombre(e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Contacto</label>
-                <input value={contacto} onChange={(e) => setContacto(e.target.value)} />
-              </div>
-            </div>
-            <div className="field">
-              <label>Teléfono</label>
-              <input value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-            </div>
-            <button className="btn btn-primary" disabled={busy}>
-              {busy ? 'Guardando…' : 'Agregar proveedor'}
-            </button>
-          </form>
-        </div>
-      ) : (
+      {!isAdmin && (
         <p className="hint" style={{ marginBottom: 16 }}>
           Solo un administrador puede agregar, editar o eliminar proveedores. Aquí puedes ver sus datos.
         </p>
@@ -176,8 +155,34 @@ export default function ProveedoresScreen({ activeWorker, proveedores, reload })
             </div>
           )
         )}
-        {proveedores.length === 0 && <div className="empty-col">Aún no hay proveedores.</div>}
+        {proveedores.length === 0 && (
+          <div className="empty-col">
+            {isAdmin ? 'Aún no hay proveedores. Usa el botón “+” de arriba para agregar el primero.' : 'Aún no hay proveedores.'}
+          </div>
+        )}
       </div>
+
+      {showForm && isAdmin && (
+        <FormModal title="Nuevo proveedor" onClose={onCloseForm} maxWidth={440}>
+          <form onSubmit={add}>
+            <div className="field">
+              <label>Nombre</label>
+              <input required autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Distribuidora La Central" />
+            </div>
+            <div className="field">
+              <label>Contacto (opcional)</label>
+              <input value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Nombre de la persona" />
+            </div>
+            <div className="field">
+              <label>Teléfono (opcional)</label>
+              <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="8888-8888" />
+            </div>
+            <button className="btn btn-primary btn-block" disabled={busy || !nombre.trim()}>
+              {busy ? 'Guardando…' : 'Agregar proveedor'}
+            </button>
+          </form>
+        </FormModal>
+      )}
     </div>
   );
 }

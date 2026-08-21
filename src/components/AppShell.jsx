@@ -12,6 +12,18 @@ import CotizacionDetail from './CotizacionDetail.jsx';
 import NuevaCotizacionModal from './NuevaCotizacionModal.jsx';
 import { useUI } from './UIProvider.jsx';
 
+// Cada pestaña tiene su propio "agregar", pero todas se comportan igual que
+// el tablero de cotizaciones: un solo botón en el encabezado que abre una
+// ventana con el formulario. En móvil ese botón se vuelve un círculo con "+".
+const ACCION_NUEVO = {
+  tablero: { label: 'Nueva cotización', soloAdmin: false },
+  proveedores: { label: 'Nuevo proveedor', soloAdmin: true },
+  equipo: { label: 'Agregar persona', soloAdmin: true },
+  faltantes: { label: 'Nuevo faltante', soloAdmin: false },
+  apartados: { label: 'Nuevo apartado', soloAdmin: false },
+  actividad: { label: 'Movimiento de caja', soloAdmin: false },
+};
+
 export default function AppShell({ profile, activeWorker, onChangeWorker, onLogout }) {
   const { toast } = useUI();
   const isCotizador = profile.role === 'cotizador';
@@ -24,9 +36,15 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
   const [apartados, setApartados] = useState([]);
   const [actividad, setActividad] = useState([]);
   const [openId, setOpenId] = useState(null);
-  const [showNueva, setShowNueva] = useState(false);
+  const [showNuevo, setShowNuevo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notifPermiso, setNotifPermiso] = useState(permisoNotificaciones());
+  const isAdmin = Boolean(activeWorker && activeWorker.es_administrador);
+
+  // Al cambiar de pestaña siempre se cierra el formulario abierto.
+  useEffect(() => {
+    setShowNuevo(false);
+  }, [tab]);
 
   // Para avisar por notificación de escritorio cuando la otra parte hace un
   // cambio: si Ocampo agrega/actualiza una cotización, avisa a Cyber, y si
@@ -182,6 +200,22 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     if (isCotizador) loadActividad();
   };
 
+  const accionNuevo = ACCION_NUEVO[tab];
+  const puedeAgregar = Boolean(accionNuevo && (!accionNuevo.soloAdmin || isAdmin));
+
+  const botonNuevo = puedeAgregar ? (
+      <button
+        type="button"
+        className="btn btn-primary header-action"
+        onClick={() => setShowNuevo(true)}
+        title={accionNuevo.label}
+        aria-label={accionNuevo.label}
+      >
+        <span className="header-action-label">+ {accionNuevo.label}</span>
+      <span className="header-action-icon" aria-hidden="true">+</span>
+    </button>
+  ) : null;
+
   return (
     <div className="shell">
       <div className="sidebar">
@@ -257,9 +291,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           <React.Fragment>
             <div className="main-header">
               <h2>Tablero de cotizaciones</h2>
-              <button className="btn btn-primary" onClick={() => setShowNueva(true)}>
-                + Nueva cotización
-              </button>
+              {botonNuevo}
             </div>
             {loading ? <div className="loading">Cargando…</div> : <Board cotizaciones={cotizaciones} onOpen={setOpenId} canDrag={true} onMoveEstado={moverEstado} />}
           </React.Fragment>
@@ -268,14 +300,22 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           <React.Fragment>
             <div className="main-header">
               <h2>Proveedores</h2>
+              {botonNuevo}
             </div>
-            <ProveedoresScreen activeWorker={activeWorker} proveedores={proveedores} reload={loadProveedores} />
+            <ProveedoresScreen
+              activeWorker={activeWorker}
+              proveedores={proveedores}
+              reload={loadProveedores}
+              showForm={showNuevo}
+              onCloseForm={() => setShowNuevo(false)}
+            />
           </React.Fragment>
         )}
         {tab === 'equipo' && (
           <React.Fragment>
             <div className="main-header">
               <h2>Equipo</h2>
+              {botonNuevo}
             </div>
             <TrabajadoresScreen
               profile={profile}
@@ -284,6 +324,8 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
               trabajadoresOcampo={trabajadoresOcampo}
               reload={isCotizador ? loadTrabajadoresCyber : loadTrabajadoresOcampo}
               log={log}
+              showForm={showNuevo}
+              onCloseForm={() => setShowNuevo(false)}
             />
           </React.Fragment>
         )}
@@ -291,14 +333,24 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           <React.Fragment>
             <div className="main-header">
               <h2>Faltantes en tienda</h2>
+              {botonNuevo}
             </div>
-            <FaltantesScreen profile={profile} activeWorker={activeWorker} faltantes={faltantes} reload={loadFaltantes} log={log} />
+            <FaltantesScreen
+              profile={profile}
+              activeWorker={activeWorker}
+              faltantes={faltantes}
+              reload={loadFaltantes}
+              log={log}
+              showForm={showNuevo}
+              onCloseForm={() => setShowNuevo(false)}
+            />
           </React.Fragment>
         )}
         {tab === 'apartados' && isCotizador && (
           <React.Fragment>
             <div className="main-header">
               <h2>Apartados en tienda</h2>
+              {botonNuevo}
             </div>
             <ApartadosScreen
               activeWorker={activeWorker}
@@ -306,6 +358,8 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
               apartados={apartados}
               reload={loadApartados}
               log={log}
+              showForm={showNuevo}
+              onCloseForm={() => setShowNuevo(false)}
             />
           </React.Fragment>
         )}
@@ -313,8 +367,17 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           <React.Fragment>
             <div className="main-header">
               <h2>Actividad</h2>
+              {botonNuevo}
             </div>
-            <ActividadScreen profile={profile} activeWorker={activeWorker} actividad={actividad} reload={loadActividad} log={log} />
+            <ActividadScreen
+              profile={profile}
+              activeWorker={activeWorker}
+              actividad={actividad}
+              reload={loadActividad}
+              log={log}
+              showForm={showNuevo}
+              onCloseForm={() => setShowNuevo(false)}
+            />
           </React.Fragment>
         )}
       </div>
@@ -333,14 +396,14 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
           log={log}
         />
       )}
-      {showNueva && (
+      {showNuevo && tab === 'tablero' && (
         <NuevaCotizacionModal
           profile={profile}
           activeWorker={activeWorker}
           escuelasSugeridas={escuelasSugeridas}
-          onClose={() => setShowNueva(false)}
+          onClose={() => setShowNuevo(false)}
           onCreated={async (id, detalle) => {
-            setShowNueva(false);
+            setShowNuevo(false);
             marcarRecienTocado(id);
             await loadCotizaciones();
             await log('Nueva cotización', detalle);

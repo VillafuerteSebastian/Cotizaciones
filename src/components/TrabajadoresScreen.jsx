@@ -3,8 +3,18 @@ import { api } from '../supabaseClient.js';
 import { hashPin } from '../pinUtils.js';
 import PinModal from './PinModal.jsx';
 import { useUI } from './UIProvider.jsx';
+import FormModal from './FormModal.jsx';
 
-export default function TrabajadoresScreen({ profile, activeWorker, trabajadoresCyber, trabajadoresOcampo, reload, log }) {
+export default function TrabajadoresScreen({
+  profile,
+  activeWorker,
+  trabajadoresCyber,
+  trabajadoresOcampo,
+  reload,
+  log,
+  showForm,
+  onCloseForm,
+}) {
   const { toast, confirmar } = useUI();
   const isCotizador = profile.role === 'cotizador';
   const tabla = isCotizador ? 'trabajadores_cyber' : 'trabajadores_ocampo';
@@ -20,9 +30,12 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
     setBusy(true);
     try {
       await api.post(tabla, { nombre: nombre.trim() });
-      if (log) await log('Agregó a equipo', nombre.trim());
+      const guardado = nombre.trim();
+      if (log) await log('Agregó a equipo', guardado);
       setNombre('');
       await reload();
+      onCloseForm();
+      toast(`"${guardado}" se agregó al equipo.`, 'success');
     } catch (ex) {
       toast('No se pudo agregar: ' + ex.message, 'error');
     } finally {
@@ -103,24 +116,7 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
           : 'Personas de Ocampo que pueden seleccionarse como quien solicita una cotización.'}
       </p>
 
-      {isAdmin ? (
-        <div className="auth-card" style={{ maxWidth: 420, marginBottom: 22, padding: 20 }}>
-          <div className="section-label" style={{ marginBottom: 12 }}>
-            Agregar persona
-          </div>
-          <form onSubmit={add}>
-            <div className="row">
-              <div className="field">
-                <label>Nombre</label>
-                <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre completo" />
-              </div>
-            </div>
-            <button className="btn btn-primary" disabled={busy}>
-              {busy ? 'Guardando…' : 'Agregar'}
-            </button>
-          </form>
-        </div>
-      ) : (
+      {!isAdmin && (
         <p className="hint" style={{ marginBottom: 16 }}>
           Solo un administrador del equipo puede agregar, desactivar o eliminar personas. Pídele a{' '}
           {lista.find((t) => t.es_administrador)?.nombre || 'un administrador'} que lo haga, o que te dé el rol.
@@ -176,8 +172,31 @@ export default function TrabajadoresScreen({ profile, activeWorker, trabajadores
             )}
           </div>
         ))}
-        {lista.length === 0 && <div className="empty-col">Aún no hay nadie en la lista.</div>}
+        {lista.length === 0 && (
+          <div className="empty-col">
+            {isAdmin ? 'Aún no hay nadie. Usa el botón “+” de arriba para agregar a la primera persona.' : 'Aún no hay nadie en la lista.'}
+          </div>
+        )}
       </div>
+
+      {showForm && isAdmin && (
+        <FormModal
+          title="Agregar persona"
+          subtitle={isCotizador ? 'Se agrega al equipo de Cyber.' : 'Se agrega al equipo de Ocampo.'}
+          onClose={onCloseForm}
+          maxWidth={420}
+        >
+          <form onSubmit={add}>
+            <div className="field">
+              <label>Nombre</label>
+              <input required autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre completo" />
+            </div>
+            <button className="btn btn-primary btn-block" disabled={busy || !nombre.trim()}>
+              {busy ? 'Guardando…' : 'Agregar'}
+            </button>
+          </form>
+        </FormModal>
+      )}
 
       {pinModal && (
         <PinModal
