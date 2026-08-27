@@ -124,7 +124,7 @@ export default function ProveedoresScreen({ activeWorker, proveedores, reload, s
       <div className="prov-list">
         {proveedores.map((p) =>
           editingId === p.id ? (
-            <div className="prov-row" key={p.id}>
+            <div className="prov-row prov-row-editing" key={p.id}>
               <ProveedorEditForm
                 p={p}
                 onCancel={() => setEditingId(null)}

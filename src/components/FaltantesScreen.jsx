@@ -59,11 +59,49 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
   );
 }
 
+function ReabrirModal({ f, onCancel, onConfirm }) {
+  const [notas, setNotas] = useState(f.notas || '');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await onConfirm(notas);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <FormModal title="Reabrir faltante" subtitle={f.producto} onClose={onCancel} maxWidth={440}>
+      <form onSubmit={submit}>
+        <div className="field">
+          <label>Notas (opcional)</label>
+          <input autoFocus value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Detalle, marca, cuánto se necesita…" />
+        </div>
+        <p className="hint" style={{ marginBottom: 12 }}>
+          Aprovecha para actualizar la nota si el texto cambió desde la última vez.
+        </p>
+        <div className="action-row">
+          <button className="btn btn-primary btn-sm" disabled={busy}>
+            {busy ? 'Guardando…' : 'Reabrir'}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </FormModal>
+  );
+}
+
 export default function FaltantesScreen({ profile, activeWorker, faltantes, reload, log, showForm, onCloseForm }) {
   const { confirmar, toast } = useUI();
   const [producto, setProducto] = useState('');
   const [notas, setNotas] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reabriendo, setReabriendo] = useState(null);
 
   const coincidencia = useMemo(() => {
     const p = producto.trim().toLowerCase();
@@ -121,9 +159,33 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
   };
 
   const toggleResuelto = async (f) => {
-    await api.patch(`productos_faltantes?id=eq.${f.id}`, { resuelto: !f.resuelto, ultima_vez: new Date().toISOString() });
-    await log(f.resuelto ? 'Reabrió faltante' : 'Resolvió faltante', f.producto);
-    await reload();
+    if (!f.resuelto) {
+      // Marcar como resuelto no necesita tocar la nota.
+      await api.patch(`productos_faltantes?id=eq.${f.id}`, { resuelto: true, ultima_vez: new Date().toISOString() });
+      await log('Resolvió faltante', f.producto);
+      await reload();
+      return;
+    }
+    // Reabrir: a veces el texto de la nota cambió, así que se da la
+    // opción de actualizarla antes de confirmar.
+    setReabriendo(f);
+  };
+
+  const confirmarReabrir = async (nota) => {
+    const f = reabriendo;
+    if (!f) return;
+    try {
+      await api.patch(`productos_faltantes?id=eq.${f.id}`, {
+        resuelto: false,
+        notas: nota.trim() || null,
+        ultima_vez: new Date().toISOString(),
+      });
+      await log('Reabrió faltante', f.producto);
+      setReabriendo(null);
+      await reload();
+    } catch (ex) {
+      toast('No se pudo reabrir: ' + ex.message, 'error');
+    }
   };
 
   const del = async (f) => {
@@ -193,6 +255,12 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
             )}
           </form>
         </FormModal>
+      )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+      {reabriendo && (
+        <ReabrirModal key="form-reabrir" f={reabriendo} onCancel={() => setReabriendo(null)} onConfirm={confirmarReabrir} />
       )}
       </AnimatePresence>
     </div>

@@ -1114,6 +1114,41 @@ button:disabled {
   font-weight: 700;
 }
 
+/* En escritorio/tablet las columnas están una junto a otra (no hay tabs
+   de una sola columna como en móvil). Sin este límite, una columna con
+   muchas cotizaciones crece sin freno y obliga a bajar toda la página
+   para ver el resto del tablero — y si la ventana es baja, la columna
+   destino de un drag puede quedar fuera de la vista, con lo que ya no
+   se puede soltar la tarjeta ahí. Cada columna hace scroll por dentro
+   en vez de empujar la página, y el encabezado queda fijo arriba. */
+@media (min-width: 701px) {
+  .col {
+    display: flex;
+    flex-direction: column;
+
+    max-height: calc(100vh - 230px);
+    min-height: 200px;
+
+    overflow-y: auto;
+  }
+
+  .col-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    flex-shrink: 0;
+
+    margin: -2px -4px 11px;
+    padding: 2px 4px 11px;
+
+    background: #EEF3F9;
+  }
+
+  .col-cancelada .col-head {
+    background: #FBF3F3;
+  }
+}
+
 
 /* =========================================================
    CARDS
@@ -2172,6 +2207,25 @@ tbody tr:last-child td {
 
   gap:
     10px;
+}
+
+/* En pantallas de PC hay espacio horizontal de sobra: acomodar los
+   proveedores en varias columnas para que la lista crezca hacia los
+   lados también, en vez de ser una sola columna que solo baja. En
+   móvil (regla más abajo) se queda como lista de una sola columna. */
+@media (min-width: 701px) {
+  .prov-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    align-items: start;
+    gap: 12px;
+  }
+
+  /* Al editar, la tarjeta ocupa toda la fila para que el formulario
+     no quede apretado dentro de una sola columna angosta. */
+  .prov-row-editing {
+    grid-column: 1 / -1;
+  }
 }
 
 .prov-row {
