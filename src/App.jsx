@@ -9,6 +9,7 @@ import {
   getActiveWorker,
   clearActiveWorker,
 } from './supabaseClient.js';
+import { limpiarCache } from './cache.js';
 import SetupScreen from './components/SetupScreen.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
 import QuienEresScreen from './components/QuienEresScreen.jsx';
@@ -48,6 +49,8 @@ export default function App() {
         const p = await fetchProfile(user.id);
         enterAfterLogin(p);
       } catch (ex) {
+        // La sesión caducó: mismo caso que cerrar sesión a mano.
+        limpiarCache();
         clearSession();
         setPhase('login');
       }
@@ -83,6 +86,9 @@ export default function App() {
         setPhase('quien-eres');
       }}
       onLogout={async () => {
+        // Cyber y Ocampo ven datos distintos, así que la caché guardada en
+        // este navegador no puede sobrevivir a un cambio de sesión.
+        limpiarCache();
         clearSession();
         setProfile(null);
         setActiveWorkerState(null);

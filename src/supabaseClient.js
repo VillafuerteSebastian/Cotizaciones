@@ -120,8 +120,12 @@ async function restRes(path, options = {}, retry = true) {
 
 async function rest(path, options = {}) {
   const res = await restRes(path, options);
-  if (res.status === 204) return null;
-  return res.json();
+  // Con `Prefer: return=minimal` PostgREST responde 201 con el cuerpo vacío
+  // (no 204), así que no basta con mirar el código: hay que comprobar si
+  // llegó algo antes de intentar interpretarlo como JSON.
+  const txt = await res.text();
+  if (!txt) return null;
+  return JSON.parse(txt);
 }
 
 // Consulta "de firma": pide la MÍNIMA cantidad de datos posible para saber
