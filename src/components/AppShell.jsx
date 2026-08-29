@@ -31,6 +31,23 @@ function NavItem({ active, onClick, icon, label }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Consultas: pedir SOLO lo que se pinta en pantalla.
+//
+// El tablero únicamente muestra folio, escuela, título, quién solicita, estado,
+// fecha, cuántos productos hay y el total. NO muestra fotos ni notas.
+// Antes se pedía `select=*,cotizacion_items(*,...)`, lo que descargaba TODAS
+// las imágenes (guardadas como base64 dentro de la base) en cada recarga: eso
+// es lo que disparó el egreso a 10 GB. Con esta lista ligera cada recarga pesa
+// unos pocos KB en lugar de varios MB.
+const SELECT_TABLERO =
+  'select=id,folio,escuela,titulo,solicitante_nombre,estado,created_at,updated_at,cotizacion_items(id,cantidad,precio_final)';
+
+// Cada cuánto se comprueba si hubo cambios. La comprobación es una consulta
+// diminuta (~100 bytes), así que 20 s no cuesta prácticamente nada; la lista
+// completa solo se vuelve a bajar cuando esa firma cambió de verdad.
+const INTERVALO_CHEQUEO = 20000;
+
 // Cada pestaña tiene su propio "agregar", pero todas se comportan igual que
 // el tablero de cotizaciones: un solo botón en el encabezado que abre una
 // ventana con el formulario. En móvil ese botón se vuelve un círculo con "+".
@@ -78,10 +95,12 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     recienTocadosRef.current.set(id, Date.now() + 8000);
   }, []);
 
+  // Guarda la última "firma" conocida del tablero (total de filas + fecha del
+  // último cambio). Sirve para no volver a bajar la lista si nada cambió.
+  const firmaRef = useRef('');
+
   const loadCotizaciones = useCallback(async () => {
-    const data = await api.get(
-      'cotizaciones?select=*,cotizacion_items(*,proveedor:proveedores(nombre),cotizado:trabajadores_cyber(nombre))&order=created_at.desc'
-    );
+    const data = await api.get(`cotizaciones?${SELECT_TABLERO}&order=created_at.desc`);
 
     if (primerCargaRef.current) {
       const prev = snapshotRef.current;
@@ -106,9 +125,17 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     }
 
     const snap = new Map();
-    for (const c of data) snap.set(c.id, { estado: c.estado, updated_at: c.updated_at });
+    let ultimoCambio = '';
+    for (const c of data) {
+      snap.set(c.id, { estado: c.estado, updated_at: c.updated_at });
+      if (c.updated_at > ultimoCambio) ultimoCambio = c.updated_at;
+    }
     snapshotRef.current = snap;
     primerCargaRef.current = true;
+
+    // Se calcula la firma con los datos que acabamos de recibir, con el mismo
+    // formato que devuelve api.firma(), para no gastar una llamada extra.
+    firmaRef.current = `${data.length}|${ultimoCambio}`;
 
     setCotizaciones(data);
   }, []);
@@ -164,13 +191,16 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     loadActividad,
   ]);
 
-  // Recarga la actividad al entrar a esa pestaña, y periódicamente mientras
-  // se está viendo, para reflejar cambios hechos por otras personas/sesiones
-  // sin tener que apretar F5.
+  // Recarga la actividad al entrar a esa pestaña y mientras se está viendo,
+  // para reflejar cambios de otras sesiones sin apretar F5. Se detiene si la
+  // ventana está en segundo plano: una pestaña olvidada abierta toda la tarde
+  // consumía cuota sin que nadie la estuviera mirando.
   useEffect(() => {
     if (tab !== 'actividad' || !isCotizador) return;
     loadActividad();
-    const interval = setInterval(loadActividad, 15000);
+    const interval = setInterval(() => {
+      if (!document.hidden) loadActividad();
+    }, 30000);
     return () => clearInterval(interval);
   }, [tab, isCotizador, loadActividad]);
 
@@ -179,16 +209,44 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
   useEffect(() => {
     if (tab !== 'apartados' || !isCotizador) return;
     loadApartados();
-    const interval = setInterval(loadApartados, 15000);
+    const interval = setInterval(() => {
+      if (!document.hidden) loadApartados();
+    }, 30000);
     return () => clearInterval(interval);
   }, [tab, isCotizador, loadApartados]);
 
-  // El tablero de cotizaciones se recarga solo cada pocos segundos (sin
-  // importar la pestaña activa), para que cualquier cambio hecho por la
-  // otra persona/dispositivo aparezca sin tener que apretar F5.
+  // El tablero se mantiene al día sin apretar F5, pero SIN volver a bajar la
+  // lista completa cada vez. Primero se pide la firma (total de cotizaciones +
+  // fecha del último cambio), que pesa unos 100 bytes; solo si esa firma
+  // cambió respecto a la que ya tenemos se descarga la lista otra vez.
+  // Además no se comprueba nada si la ventana está en segundo plano, y se
+  // comprueba de inmediato en cuanto vuelve al frente.
   useEffect(() => {
-    const interval = setInterval(loadCotizaciones, 12000);
-    return () => clearInterval(interval);
+    let cancelado = false;
+
+    const revisarCambios = async () => {
+      if (document.hidden || cancelado) return;
+      try {
+        const actual = await api.firma('cotizaciones');
+        if (cancelado) return;
+        if (actual !== firmaRef.current) await loadCotizaciones();
+      } catch (ex) {
+        // Un fallo de red puntual no debe romper nada: se reintenta al
+        // siguiente ciclo.
+      }
+    };
+
+    const interval = setInterval(revisarCambios, INTERVALO_CHEQUEO);
+    const alVolver = () => {
+      if (!document.hidden) revisarCambios();
+    };
+    document.addEventListener('visibilitychange', alVolver);
+
+    return () => {
+      cancelado = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
   }, [loadCotizaciones]);
 
   const activarNotificaciones = async () => {

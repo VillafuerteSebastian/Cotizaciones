@@ -97,7 +97,7 @@ async function doRefresh() {
   return data;
 }
 
-async function rest(path, options = {}, retry = true) {
+async function restRes(path, options = {}, retry = true) {
   const res = await fetch(`${S.url}/rest/v1/${path}`, {
     ...options,
     headers: {
@@ -109,20 +109,48 @@ async function rest(path, options = {}, retry = true) {
   });
   if (res.status === 401 && retry) {
     await doRefresh();
-    return rest(path, options, false);
+    return restRes(path, options, false);
   }
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(txt || `Error ${res.status}`);
   }
+  return res;
+}
+
+async function rest(path, options = {}) {
+  const res = await restRes(path, options);
   if (res.status === 204) return null;
   return res.json();
 }
 
+// Consulta "de firma": pide la MÍNIMA cantidad de datos posible para saber
+// si algo cambió en una tabla, sin descargar las filas completas.
+// Devuelve { total, ultimoCambio } usando el header Content-Range que
+// PostgREST manda cuando se pide `Prefer: count=exact`.
+// El cuerpo de la respuesta es una sola fila con una sola columna, así que
+// esta llamada pesa unos ~100 bytes en vez de varios megabytes.
+async function firma(tabla, columnaFecha = 'updated_at') {
+  const res = await restRes(
+    `${tabla}?select=${columnaFecha}&order=${columnaFecha}.desc&limit=1`,
+    { headers: { Prefer: 'count=exact' } }
+  );
+  const rango = res.headers.get('content-range') || '';
+  const total = rango.split('/')[1] || '?';
+  const filas = await res.json();
+  const ultimoCambio = filas && filas[0] ? filas[0][columnaFecha] : '';
+  return `${total}|${ultimoCambio}`;
+}
+
 export const api = {
   get: (path) => rest(path),
+  firma,
   post: (path, body) =>
     rest(path, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(body) }),
+  // Igual que post pero le pide a Supabase que NO devuelva la fila creada.
+  // Para inserciones cuyo resultado no usamos (bitácora de actividad).
+  postMudo: (path, body) =>
+    rest(path, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(body) }),
   patch: (path, body) =>
     rest(path, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(body) }),
   del: (path) => rest(path, { method: 'DELETE' }),
@@ -144,7 +172,7 @@ export function clearActiveWorker(role) {
 // Bitácora de actividad (control interno, solo la lee Cyber).
 export async function logActividad(profile, activeWorker, accion, detalle) {
   try {
-    await api.post('actividad', {
+    await api.postMudo('actividad', {
       profile_id: profile.id,
       profile_role: profile.role,
       trabajador_nombre: activeWorker ? activeWorker.nombre : null,
