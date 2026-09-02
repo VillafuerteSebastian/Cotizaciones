@@ -1317,6 +1317,87 @@ button:disabled {
     .01em;
 }
 
+/* Select de prioridad de un faltante (Alta/Media/Baja): píldora sólida
+   del color de su valor actual (vía style inline en JS) con texto
+   blanco, para que se note bien de un vistazo aunque no se abra el
+   desplegable. La flecha va en blanco semitransparente fijo por CSS
+   porque el color de fondo cambia por JS. */
+.prioridad-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  border: 0;
+  border-radius: 20px;
+
+  padding: 4px 24px 4px 10px;
+
+  color: #fff;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .18);
+
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'%3E%3Cpath d='M1 1l3.5 3.5L8 1' stroke='white' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.prioridad-select option {
+  color: var(--ink);
+  background: #fff;
+}
+
+.prioridad-select:hover {
+  filter: brightness(.94);
+}
+
+.prioridad-select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Filtro de prioridad: fila de píldoras tipo "chip" arriba de las
+   tablas de faltantes. La activa se rellena con el color de esa
+   prioridad; las demás quedan solo con el borde de su color. */
+.prioridad-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.prioridad-filtro-btn {
+  padding: 6px 13px;
+
+  border: 1.5px solid var(--line);
+  border-radius: 20px;
+
+  background: #fff;
+  color: var(--ink-soft);
+
+  font-size: 12px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
+}
+
+.prioridad-filtro-btn:hover {
+  transform: translateY(-1px);
+}
+
+.prioridad-filtro-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
 
 /* =========================================================
    CLOSE BUTTON

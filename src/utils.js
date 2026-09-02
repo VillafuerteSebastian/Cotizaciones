@@ -23,6 +23,17 @@ export const ESTADOS_APARTADO = [
 
 export const estadoApartadoInfo = (k) => ESTADOS_APARTADO.find((e) => e.key === k) || ESTADOS_APARTADO[0];
 
+// Prioridad de reposición de un faltante. Orden de más a menos urgente:
+// se usa tanto para el color/etiqueta como para ordenar la lista de
+// pendientes (alta primero).
+export const PRIORIDADES_FALTANTE = [
+  { key: 'alta', label: 'Alta', color: '#DC2626', soft: '#FEF2F2' },
+  { key: 'media', label: 'Media', color: '#B45309', soft: '#FFFBEB' },
+  { key: 'baja', label: 'Baja', color: '#15803D', soft: '#ECFDF3' },
+];
+
+export const prioridadFaltanteInfo = (k) => PRIORIDADES_FALTANTE.find((p) => p.key === k) || PRIORIDADES_FALTANTE[1];
+
 export const fmtMoney = (n) => {
   if (n === null || n === undefined || n === '') return '—';
   return new Intl.NumberFormat('es-CR', {

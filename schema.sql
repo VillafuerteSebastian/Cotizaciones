@@ -137,6 +137,12 @@ alter table public.cotizacion_items add column if not exists cotizado_por_trabaj
 alter table public.cotizacion_items add column if not exists descripcion text;
 alter table public.cotizacion_items add column if not exists imagen text;
 
+-- Qué tan urgente es reponer un faltante. 'media' por defecto para no
+-- obligar a decidir la prioridad al reportarlo rápido desde el piso de venta.
+do $$ begin
+  create type public.prioridad_faltante as enum ('baja', 'media', 'alta');
+exception when duplicate_object then null; end $$;
+
 -- ---------- Lista de productos faltantes en tienda (solo Cyber) ----------
 create table if not exists public.productos_faltantes (
   id uuid primary key default gen_random_uuid(),
@@ -145,11 +151,13 @@ create table if not exists public.productos_faltantes (
   resuelto boolean not null default false,
   veces_reportado integer not null default 1,
   ultima_vez timestamptz not null default now(),
+  prioridad public.prioridad_faltante not null default 'media',
   creado_por uuid references public.profiles(id),
   created_at timestamptz not null default now()
 );
 alter table public.productos_faltantes add column if not exists veces_reportado integer not null default 1;
 alter table public.productos_faltantes add column if not exists ultima_vez timestamptz not null default now();
+alter table public.productos_faltantes add column if not exists prioridad public.prioridad_faltante not null default 'media';
 
 -- ---------- Apartados/pedidos hechos directamente en tienda (solo Cyber) ----------
 create table if not exists public.apartados (

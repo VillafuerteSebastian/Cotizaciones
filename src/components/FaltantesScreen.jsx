@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { api } from '../supabaseClient.js';
-import { fmtDateTime } from '../utils.js';
+import { fmtDateTime, PRIORIDADES_FALTANTE, prioridadFaltanteInfo } from '../utils.js';
 import Pager, { usePager } from './Pager.jsx';
 import { useUI } from './UIProvider.jsx';
 import FormModal from './FormModal.jsx';
@@ -10,7 +10,61 @@ import { AnimatePresence } from './Motion.jsx';
 // crece y se hace scroll normal hacia abajo (clase `no-inner-scroll`).
 const POR_PAGINA = 20;
 
-function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
+// Select nativo pero pintado como una píldora sólida del color de la
+// prioridad actual (texto blanco) para que se note de un vistazo,
+// incluso sin abrir el desplegable. Cambiar el valor ya guarda de una
+// vez (sin botón aparte).
+function PrioridadSelect({ value, onChange }) {
+  const info = prioridadFaltanteInfo(value);
+  return (
+    <select
+      className="prioridad-select"
+      style={{ backgroundColor: info.color }}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {PRIORIDADES_FALTANTE.map((p) => (
+        <option key={p.key} value={p.key}>
+          {p.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// Fila de botones para filtrar por prioridad ("Todas" + una por cada
+// nivel). Además de filtrar, cada botón lleva el color de su
+// prioridad para que sea fácil de ubicar de un vistazo.
+function FiltroPrioridad({ value, onChange, conteos }) {
+  return (
+    <div className="prioridad-filtro" role="group" aria-label="Filtrar por prioridad">
+      <button
+        type="button"
+        className={`prioridad-filtro-btn${value === null ? ' active' : ''}`}
+        onClick={() => onChange(null)}
+      >
+        Todas ({conteos.todas})
+      </button>
+      {PRIORIDADES_FALTANTE.map((p) => {
+        const active = value === p.key;
+        return (
+          <button
+            key={p.key}
+            type="button"
+            className={`prioridad-filtro-btn${active ? ' active' : ''}`}
+            style={active ? { background: p.color, borderColor: p.color, color: '#fff' } : { color: p.color, borderColor: p.color }}
+            onClick={() => onChange(active ? null : p.key)}
+          >
+            {p.label} ({conteos[p.key] || 0})
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TablaFaltantes({ titulo, items, onToggle, onDelete, onPrioridad, vacio }) {
   const { pageItems, page, setPage, totalPages } = usePager(items, POR_PAGINA);
   return (
     <div className="cat-card" style={{ marginBottom: 0 }}>
@@ -26,16 +80,22 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
             <tr>
               <th>Producto</th>
               <th>Notas</th>
+              <th>Prioridad</th>
               <th>Veces</th>
               <th>Última vez</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {pageItems.map((f) => (
-              <tr key={f.id}>
+            {pageItems.map((f) => {
+              const info = prioridadFaltanteInfo(f.prioridad || 'media');
+              return (
+              <tr key={f.id} style={{ background: info.soft }}>
                 <td data-label="Producto" style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>{f.producto}</td>
                 <td data-label="Notas" className="item-notas">{f.notas || '—'}</td>
+                <td data-label="Prioridad">
+                  <PrioridadSelect value={f.prioridad || 'media'} onChange={(p) => onPrioridad(f, p)} />
+                </td>
                 <td data-label="Veces">{f.veces_reportado > 1 ? `×${f.veces_reportado}` : '—'}</td>
                 <td data-label="Última vez" className="item-time">{fmtDateTime(f.ultima_vez || f.created_at)}</td>
                 <td data-label="Acciones">
@@ -49,7 +109,8 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, vacio }) {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         </div>
@@ -100,8 +161,10 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
   const { confirmar, toast } = useUI();
   const [producto, setProducto] = useState('');
   const [notas, setNotas] = useState('');
+  const [prioridad, setPrioridad] = useState('media');
   const [busy, setBusy] = useState(false);
   const [reabriendo, setReabriendo] = useState(null);
+  const [filtroPrioridad, setFiltroPrioridad] = useState(null);
 
   const coincidencia = useMemo(() => {
     const p = producto.trim().toLowerCase();
@@ -112,6 +175,7 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
   const limpiar = () => {
     setProducto('');
     setNotas('');
+    setPrioridad('media');
   };
 
   const add = async (e) => {
@@ -123,6 +187,7 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
       await api.post('productos_faltantes', {
         producto: guardado,
         notas: notas.trim() || null,
+        prioridad,
         creado_por: profile.id,
       });
       await log('Agregó faltante', guardado);
@@ -188,6 +253,17 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
     }
   };
 
+  const cambiarPrioridad = async (f, nuevaPrioridad) => {
+    if (nuevaPrioridad === f.prioridad) return;
+    try {
+      await api.patch(`productos_faltantes?id=eq.${f.id}`, { prioridad: nuevaPrioridad });
+      await log('Cambió prioridad de faltante', `${f.producto} → ${prioridadFaltanteInfo(nuevaPrioridad).label}`);
+      await reload();
+    } catch (ex) {
+      toast('No se pudo cambiar la prioridad: ' + ex.message, 'error');
+    }
+  };
+
   const del = async (f) => {
     const ok = await confirmar(`¿Eliminar "${f.producto}" de la lista de faltantes?`, { confirmLabel: 'Eliminar' });
     if (!ok) return;
@@ -197,18 +273,48 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
   };
 
   const ordenados = [...faltantes].sort((a, b) => new Date(b.ultima_vez || b.created_at) - new Date(a.ultima_vez || a.created_at));
-  const pendientes = ordenados.filter((f) => !f.resuelto);
-  const resueltos = ordenados.filter((f) => f.resuelto);
+  const prioridadDe = (f) => f.prioridad || 'media';
+  // Pendientes: alta primero, luego media, luego baja; dentro de cada
+  // prioridad, del más reciente al más viejo. Resueltos se queda solo
+  // por fecha porque la urgencia ya no importa una vez atendido.
+  const rango = (f) => PRIORIDADES_FALTANTE.findIndex((p) => p.key === prioridadDe(f));
+  const todosPendientes = ordenados.filter((f) => !f.resuelto).sort((a, b) => rango(a) - rango(b));
+  const todosResueltos = ordenados.filter((f) => f.resuelto);
+
+  const conteos = { todas: ordenados.length };
+  PRIORIDADES_FALTANTE.forEach((p) => {
+    conteos[p.key] = ordenados.filter((f) => prioridadDe(f) === p.key).length;
+  });
+
+  const pendientes = filtroPrioridad ? todosPendientes.filter((f) => prioridadDe(f) === filtroPrioridad) : todosPendientes;
+  const resueltos = filtroPrioridad ? todosResueltos.filter((f) => prioridadDe(f) === filtroPrioridad) : todosResueltos;
 
   return (
     <div>
       <p className="hint" style={{ marginBottom: 16 }}>
-        {POR_PAGINA} artículos por página. La lista completa se recorre haciendo scroll normal de la página.
+        {POR_PAGINA} artículos por página. La lista completa se recorre haciendo scroll normal de la página. Los pendientes
+        se ordenan por prioridad (alta → media → baja).
       </p>
 
+      <FiltroPrioridad value={filtroPrioridad} onChange={setFiltroPrioridad} conteos={conteos} />
+
       <div className="parallel-grid faltantes-grid">
-        <TablaFaltantes titulo="Pendientes" items={pendientes} onToggle={toggleResuelto} onDelete={del} vacio="Nada pendiente 🎉" />
-        <TablaFaltantes titulo="Resueltos" items={resueltos} onToggle={toggleResuelto} onDelete={del} vacio="Aún no hay nada resuelto." />
+        <TablaFaltantes
+          titulo="Pendientes"
+          items={pendientes}
+          onToggle={toggleResuelto}
+          onDelete={del}
+          onPrioridad={cambiarPrioridad}
+          vacio={filtroPrioridad ? 'Nada pendiente con esa prioridad.' : 'Nada pendiente 🎉'}
+        />
+        <TablaFaltantes
+          titulo="Resueltos"
+          items={resueltos}
+          onToggle={toggleResuelto}
+          onDelete={del}
+          onPrioridad={cambiarPrioridad}
+          vacio={filtroPrioridad ? 'Nada resuelto con esa prioridad.' : 'Aún no hay nada resuelto.'}
+        />
       </div>
 
       <AnimatePresence>
@@ -231,6 +337,16 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
             <div className="field">
               <label>Notas (opcional)</label>
               <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Detalle, marca, cuánto se necesita…" />
+            </div>
+            <div className="field">
+              <label>Prioridad</label>
+              <select value={prioridad} onChange={(e) => setPrioridad(e.target.value)}>
+                {PRIORIDADES_FALTANTE.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {coincidencia ? (
