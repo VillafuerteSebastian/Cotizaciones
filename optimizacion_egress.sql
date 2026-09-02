@@ -46,3 +46,17 @@ drop trigger if exists trg_items_tocan_cotizacion on public.cotizacion_items;
 create trigger trg_items_tocan_cotizacion
 after insert or update or delete on public.cotizacion_items
 for each row execute function public.tocar_cotizacion_padre();
+
+
+-- ---------- 3. Saber si hay foto SIN descargar la foto ----------
+-- Las fotos se guardan como texto base64 dentro de la propia tabla, así que
+-- pedir `imagen` cuesta decenas de KB por producto. Estas dos columnas son
+-- un simple booleano calculado por Postgres: la app pregunta "¿hay foto?"
+-- y solo descarga la imagen si alguien hace clic en "Ver foto".
+alter table public.cotizacion_items
+  add column if not exists tiene_imagen boolean
+  generated always as (imagen is not null) stored;
+
+alter table public.cotizaciones
+  add column if not exists tiene_imagen_notas boolean
+  generated always as (imagen_notas is not null) stored;

@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api, logActividad } from '../supabaseClient.js';
+import {
+  leerCache,
+  guardarCache,
+  borrarCache,
+  claveCompleta,
+  otraPestanaYaPregunto,
+  marcarChequeo,
+} from '../cache.js';
 import { estadoInfo } from '../utils.js';
 import { soportaNotificaciones, permisoNotificaciones, pedirPermisoNotificaciones, mostrarNotificacion } from '../notify.js';
 import Board from './Board.jsx';
@@ -46,7 +54,30 @@ const SELECT_TABLERO =
 // Cada cuánto se comprueba si hubo cambios. La comprobación es una consulta
 // diminuta (~100 bytes), así que 20 s no cuesta prácticamente nada; la lista
 // completa solo se vuelve a bajar cuando esa firma cambió de verdad.
+// Si pasa un rato sin novedades, la espera crece sola hasta INTERVALO_MAXIMO
+// y vuelve a 20 s en cuanto aparece movimiento.
 const INTERVALO_CHEQUEO = 20000;
+const INTERVALO_MAXIMO = 120000;
+
+// Red de seguridad: pase lo que pase, cada 10 minutos se baja la lista
+// completa. Así, si el trigger de la base no está puesto o algo quedó
+// desincronizado, el tablero se arregla solo en vez de quedarse viejo para
+// siempre. Son 6 descargas por hora como mucho, de unos pocos KB.
+const REFRESCO_COMPLETO = 10 * 60 * 1000;
+
+// Hasta cuándo se considera que la caché sirve para comparar y avisar de
+// cambios. Recargar la página o abrir otra pestaña cae dentro; volver al día
+// siguiente, no.
+const CACHE_CONFIABLE = 10 * 60 * 1000;
+
+// Mínimo entre chequeos, incluso al volver a la pestaña. Sin esto, alternar
+// entre ventanas con alt+tab dispara una petición por cada cambio de foco.
+const MINIMO_ENTRE_CHEQUEOS = 5000;
+
+// Proveedores y personal cambian rarísima vez. Se guardan en el navegador y
+// solo se vuelven a pedir pasada media hora (o al editarlos, que fuerza la
+// recarga desde su propia pantalla).
+const VIDA_CATALOGO = 30 * 60 * 1000;
 
 // Cada pestaña tiene su propio "agregar", pero todas se comportan igual que
 // el tablero de cotizaciones: un solo botón en el encabezado que abre una
@@ -98,11 +129,19 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
   // Guarda la última "firma" conocida del tablero (total de filas + fecha del
   // último cambio). Sirve para no volver a bajar la lista si nada cambió.
   const firmaRef = useRef('');
+  const ultimaCargaCompletaRef = useRef(0);
 
-  const loadCotizaciones = useCallback(async () => {
-    const data = await api.get(`cotizaciones?${SELECT_TABLERO}&order=created_at.desc`);
+  // Las claves de caché llevan el id del perfil: Cyber y Ocampo ven cosas
+  // distintas (las políticas de Supabase le ocultan los proveedores a Ocampo),
+  // y en una computadora compartida no deben pisarse entre ellos.
+  const claveTablero = useMemo(() => `tablero_${profile.id}`, [profile.id]);
 
-    if (primerCargaRef.current) {
+  // Toma una lista de cotizaciones (recién bajada, leída de la caché, o
+  // recibida de otra pestaña) y actualiza pantalla, snapshot y firma.
+  // `avisar` es false cuando los datos vienen de la caché al arrancar: ahí no
+  // hay nada nuevo que notificar, solo estamos pintando lo que ya sabíamos.
+  const aplicarCotizaciones = useCallback((data, firma, avisar = true) => {
+    if (avisar && primerCargaRef.current) {
       const prev = snapshotRef.current;
       const ahora = Date.now();
       for (const c of data) {
@@ -125,32 +164,115 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     }
 
     const snap = new Map();
-    let ultimoCambio = '';
     for (const c of data) {
       snap.set(c.id, { estado: c.estado, updated_at: c.updated_at });
-      if (c.updated_at > ultimoCambio) ultimoCambio = c.updated_at;
     }
     snapshotRef.current = snap;
-    primerCargaRef.current = true;
+    // Ojo con esta bandera: marca que ya tenemos con qué comparar. Al pintar
+    // desde la caché la decisión se toma fuera (según lo vieja que sea), así
+    // que aquí solo se sube, nunca se baja.
+    if (avisar) primerCargaRef.current = true;
 
-    // Se calcula la firma con los datos que acabamos de recibir, con el mismo
-    // formato que devuelve api.firma(), para no gastar una llamada extra.
-    firmaRef.current = `${data.length}|${ultimoCambio}`;
-
+    firmaRef.current = firma;
     setCotizaciones(data);
   }, []);
-  const loadProveedores = useCallback(async () => {
-    const data = await api.get('proveedores?select=*&order=nombre.asc');
-    setProveedores(data);
-  }, []);
-  const loadTrabajadoresCyber = useCallback(async () => {
-    const data = await api.get('trabajadores_cyber?select=*&order=nombre.asc');
-    setTrabajadoresCyber(data);
-  }, []);
-  const loadTrabajadoresOcampo = useCallback(async () => {
-    const data = await api.get('trabajadores_ocampo?select=*&order=nombre.asc');
-    setTrabajadoresOcampo(data);
-  }, []);
+
+  // `firmaConocida`: si quien llama acaba de pedir la firma (el chequeo
+  // periódico siempre lo hace), se reutiliza en vez de pedirla otra vez. Eso
+  // ahorra un viaje por recarga y, sobre todo, evita que un fallo intermitente
+  // de la firma deje firmaRef vacía y provoque una descarga completa por ciclo.
+  const loadCotizaciones = useCallback(
+    async (firmaConocida) => {
+      // Cuando hay que pedirla, se pide ANTES que la lista, y esto importa: si
+      // alguien cambia algo justo entre las dos peticiones, la firma que
+      // guardamos queda vieja y el siguiente chequeo detecta la diferencia. Al
+      // revés, ese cambio se perdería hasta el refresco completo.
+      // La firma siempre viene del servidor, nunca se recalcula aquí, así que
+      // las dos comparaciones hablan literalmente el mismo idioma pase lo que
+      // pase (por ejemplo, si PostgREST recorta la lista por su límite de
+      // filas máximas, cosa que un cálculo local no vería).
+      let firma = firmaConocida || '';
+      if (!firma) {
+        try {
+          firma = await api.firma('cotizaciones');
+        } catch (ex) {
+          firma = ''; // sin firma no se cachea; el próximo ciclo lo reintenta
+        }
+      }
+      const datos = await api.get(`cotizaciones?${SELECT_TABLERO}&order=created_at.desc`);
+      aplicarCotizaciones(datos, firma);
+      ultimaCargaCompletaRef.current = Date.now();
+      // Se comparte con las demás pestañas y con la próxima recarga de página.
+      if (firma) guardarCache(claveTablero, firma, datos);
+      return firma;
+    },
+    [aplicarCotizaciones, claveTablero]
+  );
+  // Catálogos: proveedores y personal cambian una vez cada varias semanas,
+  // pero se descargaban en cada carga de la página. Ahora se guardan en la
+  // caché del navegador y solo se vuelven a pedir si pasó el tiempo de vida
+  // o si alguien los edita (esas pantallas llaman a `reload` explícitamente).
+  // La clave lleva el id del perfil, y una lista vacía no se guarda nunca:
+  // si Supabase devuelve [] porque este rol no tiene permiso de ver esa tabla,
+  // guardarlo dejaría al otro rol con la pantalla vacía durante media hora.
+  const cargarCatalogo = useCallback(
+    async (clave, consulta, setter, forzar = false) => {
+      const claveUsuario = `${clave}_${profile.id}`;
+      if (!forzar) {
+        const guardado = leerCache(claveUsuario);
+        if (
+          guardado &&
+          Array.isArray(guardado.datos) &&
+          guardado.datos.length &&
+          Number.isFinite(guardado.ts) &&
+          Date.now() - guardado.ts < VIDA_CATALOGO
+        ) {
+          setter(guardado.datos);
+          return;
+        }
+      }
+      const data = await api.get(consulta);
+      setter(data);
+      // Una lista vacía puede ser real (se borró al último proveedor) o puede
+      // ser que este rol no tenga permiso de leer esa tabla. En los dos casos
+      // lo correcto es borrar la entrada, nunca guardarla: guardarla dejaría
+      // la pantalla vacía para el otro rol, y no borrarla resucitaría
+      // registros ya eliminados durante media hora.
+      if (data.length) guardarCache(claveUsuario, '', data);
+      else borrarCache(claveUsuario);
+    },
+    [profile.id]
+  );
+
+  // Solo Cyber puede leer proveedores (así está la política en Supabase), así
+  // que para Ocampo esta consulta era una petición garantizada a devolver [].
+  const loadProveedores = useCallback(
+    (forzar = true) => {
+      if (!isCotizador) return Promise.resolve();
+      return cargarCatalogo('proveedores', 'proveedores?select=*&order=nombre.asc', setProveedores, forzar);
+    },
+    [cargarCatalogo, isCotizador]
+  );
+  const loadTrabajadoresCyber = useCallback(
+    (forzar = true) =>
+      cargarCatalogo(
+        'trab_cyber',
+        'trabajadores_cyber?select=*&order=nombre.asc',
+        setTrabajadoresCyber,
+        forzar
+      ),
+    [cargarCatalogo]
+  );
+  const loadTrabajadoresOcampo = useCallback(
+    (forzar = true) =>
+      cargarCatalogo(
+        'trab_ocampo',
+        'trabajadores_ocampo?select=*&order=nombre.asc',
+        setTrabajadoresOcampo,
+        forzar
+      ),
+    [cargarCatalogo]
+  );
   const loadFaltantes = useCallback(async () => {
     if (!isCotizador) return;
     const data = await api.get('productos_faltantes?select=*&order=created_at.desc');
@@ -161,35 +283,113 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     const data = await api.get('apartados?select=*&order=created_at.desc');
     setApartados(data);
   }, [isCotizador]);
+  // Se pide columna por columna en vez de `select=*` (sobra profile_id), pero
+  // el límite se queda en 100: con menos, los totales de caja del mes que
+  // calcula ActividadScreen empezarían a quedarse cortos, y son cifras de
+  // dinero. Ahorrar unos KB no vale ese riesgo.
   const loadActividad = useCallback(async () => {
     if (!isCotizador) return;
-    const data = await api.get('actividad?select=*&order=created_at.desc&limit=100');
+    const data = await api.get(
+      'actividad?select=id,profile_role,trabajador_nombre,accion,detalle,created_at&order=created_at.desc&limit=100'
+    );
     setActividad(data);
   }, [isCotizador]);
 
+  // Arranque. El tablero se pinta al instante desde la caché del navegador y
+  // después se comprueba la firma: si nadie cambió nada desde la última vez
+  // (el caso normal al recargar la página o abrir otra pestaña), no se
+  // descarga la lista. Antes cada F5 costaba la tabla entera.
   useEffect(() => {
     (async () => {
       setLoading(true);
+
+      let guardado = null;
+      try {
+        const leido = leerCache(claveTablero);
+        if (
+          leido &&
+          Array.isArray(leido.datos) &&
+          typeof leido.firma === 'string' &&
+          leido.firma &&
+          typeof leido.ts === 'number' &&
+          Number.isFinite(leido.ts)
+        ) {
+          guardado = leido;
+        }
+      } catch (ex) {
+        guardado = null; // entrada corrupta: se ignora y se carga de cero
+      }
+
+      if (guardado) {
+        aplicarCotizaciones(guardado.datos, guardado.firma, false);
+        // La caché cuenta como carga completa reciente: si no, el primer tick
+        // del temporizador dispararía la descarga completa 20 s después y se
+        // perdería justo el ahorro de haber recargado la página.
+        // El Math.min protege de un reloj que vaya adelantado: una marca en el
+        // futuro dejaría el refresco de seguridad congelado.
+        const marca = Math.min(guardado.ts, Date.now());
+        ultimaCargaCompletaRef.current = marca;
+
+        // Si la caché es de hace un momento (recargar la página, abrir otra
+        // pestaña), el snapshot sirve para comparar y las notificaciones
+        // siguen funcionando desde el primer cambio. Si es de hace horas, se
+        // trata como primera carga para no soltar de golpe una notificación
+        // por cada cotización que se movió mientras la app estuvo cerrada.
+        primerCargaRef.current = Date.now() - marca < CACHE_CONFIABLE;
+        setLoading(false);
+      }
+
+      const tableroAlDia = async () => {
+        try {
+          const actual = await api.firma('cotizaciones');
+          marcarChequeo();
+          if (actual !== firmaRef.current) await loadCotizaciones(actual);
+        } catch (ex) {
+          // Si la firma falla, se cae de vuelta a la carga completa para no
+          // dejar la pantalla con datos viejos.
+          await loadCotizaciones();
+        }
+      };
+
       await Promise.all([
-        loadCotizaciones(),
-        loadProveedores(),
-        loadTrabajadoresCyber(),
-        loadTrabajadoresOcampo(),
+        guardado ? tableroAlDia() : loadCotizaciones(),
+        loadProveedores(false),
+        loadTrabajadoresCyber(false),
+        loadTrabajadoresOcampo(false),
         loadFaltantes(),
         loadApartados(),
         loadActividad(),
       ]);
       setLoading(false);
     })();
-  }, [
-    loadCotizaciones,
-    loadProveedores,
-    loadTrabajadoresCyber,
-    loadTrabajadoresOcampo,
-    loadFaltantes,
-    loadApartados,
-    loadActividad,
-  ]);
+    // Solo al montar: las recargas posteriores las manejan el temporizador y
+    // las acciones de cada pantalla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Otra pestaña del mismo navegador bajó datos nuevos: los aprovechamos sin
+  // pedirle absolutamente nada a Supabase.
+  useEffect(() => {
+    const alCambiarCache = (e) => {
+      if (e.key !== claveCompleta(claveTablero) || !e.newValue) return;
+      try {
+        const guardado = JSON.parse(e.newValue);
+        if (!Array.isArray(guardado.datos) || !guardado.firma) return;
+        // Fuera del if: otra pestaña acaba de bajar la lista completa, así que
+        // esta ya no necesita hacerlo aunque los datos vinieran iguales. Con
+        // tres pestañas abiertas eso es una descarga cada 10 min en vez de tres.
+        const marca = Number.isFinite(guardado.ts) ? Math.min(guardado.ts, Date.now()) : Date.now();
+        ultimaCargaCompletaRef.current = marca;
+        if (guardado.firma !== firmaRef.current) {
+          aplicarCotizaciones(guardado.datos, guardado.firma);
+        }
+      } catch (ex) {
+        // json corrupto: se ignora, el temporizador lo arreglará
+      }
+    };
+    window.addEventListener('storage', alCambiarCache);
+    return () => window.removeEventListener('storage', alCambiarCache);
+  }, [aplicarCotizaciones, claveTablero]);
 
   // Recarga la actividad al entrar a esa pestaña y mientras se está viendo,
   // para reflejar cambios de otras sesiones sin apretar F5. Se detiene si la
@@ -223,28 +423,86 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
   // comprueba de inmediato en cuanto vuelve al frente.
   useEffect(() => {
     let cancelado = false;
+    let temporizador = null;
+    let espera = INTERVALO_CHEQUEO;
+    // Cada vez que se reinicia el ciclo (al volver a la pestaña) sube el
+    // número de generación. Una cadena vieja que estaba a mitad de una
+    // petición se da cuenta al terminar y se apaga, en vez de dejar dos
+    // temporizadores corriendo en paralelo.
+    let generacion = 0;
 
-    const revisarCambios = async () => {
-      if (document.hidden || cancelado) return;
+    const revisarCambios = async (miGeneracion, forzado) => {
+      if (cancelado || document.hidden) return;
+
+      // Si otra pestaña de este mismo navegador ya preguntó hace un momento,
+      // esta se ahorra la petición: el resultado le llega por el evento
+      // `storage`. Tres pestañas abiertas cuestan lo mismo que una.
+      // Cuando la persona acaba de volver a la pestaña (`forzado`) se salta esa
+      // cortesía, porque ahí lo que importa es ver los datos frescos — pero
+      // siempre respetando un mínimo, o alternar ventanas con alt+tab dispara
+      // una petición por cada cambio de foco.
+      const ventana = forzado ? MINIMO_ENTRE_CHEQUEOS : espera * 0.8;
+      if (otraPestanaYaPregunto(ventana)) return;
+      marcarChequeo();
+
       try {
+        // Red de seguridad: cada tanto se recarga la lista completa aunque la
+        // firma diga que no hubo cambios. Cubre el caso de que el trigger de
+        // la base no esté puesto, o de que algo se haya desincronizado.
+        const tocaCompleta = Date.now() - ultimaCargaCompletaRef.current > REFRESCO_COMPLETO;
+        if (tocaCompleta) {
+          const guardada = await loadCotizaciones();
+          if (cancelado || miGeneracion !== generacion) return;
+          espera = guardada ? INTERVALO_CHEQUEO : Math.min(Math.round(espera * 1.5), INTERVALO_MAXIMO);
+          return;
+        }
+
         const actual = await api.firma('cotizaciones');
-        if (cancelado) return;
-        if (actual !== firmaRef.current) await loadCotizaciones();
+        if (cancelado || miGeneracion !== generacion) return;
+        if (actual !== firmaRef.current) {
+          // Se le pasa la firma que acabamos de obtener: es anterior a la
+          // lista que va a bajar, así que sigue siendo válida, y así no se
+          // gasta otra petición ni se corre el riesgo de quedarse sin firma.
+          const guardada = await loadCotizaciones(actual);
+          // Si por lo que sea no quedó firma, se espacia igual: sin esto, una
+          // firma inestable bajaría la lista entera cada 20 s para siempre.
+          espera = guardada ? INTERVALO_CHEQUEO : Math.min(Math.round(espera * 1.5), INTERVALO_MAXIMO);
+        } else {
+          // Nada cambió: se espacia poco a poco, hasta el tope. En una tarde
+          // tranquila esto baja los chequeos a la mitad o menos.
+          espera = Math.min(Math.round(espera * 1.5), INTERVALO_MAXIMO);
+        }
       } catch (ex) {
-        // Un fallo de red puntual no debe romper nada: se reintenta al
-        // siguiente ciclo.
+        // Un fallo de red puntual no rompe nada: se reintenta al siguiente
+        // ciclo, un poco más despacio.
+        espera = Math.min(Math.round(espera * 1.5), INTERVALO_MAXIMO);
       }
     };
 
-    const interval = setInterval(revisarCambios, INTERVALO_CHEQUEO);
+    // Se reprograma cada vez en lugar de usar setInterval, porque la espera
+    // va cambiando según haya o no movimiento.
+    const programar = async (miGeneracion, forzado = false) => {
+      if (cancelado || miGeneracion !== generacion) return;
+      await revisarCambios(miGeneracion, forzado);
+      if (cancelado || miGeneracion !== generacion) return;
+      temporizador = setTimeout(() => programar(miGeneracion), espera);
+    };
+    temporizador = setTimeout(() => programar(generacion), espera);
+
+    // Al volver a la pestaña se comprueba de inmediato y se reinicia el ritmo,
+    // que es justo cuando a la persona le importa ver los datos frescos.
     const alVolver = () => {
-      if (!document.hidden) revisarCambios();
+      if (document.hidden || cancelado) return;
+      espera = INTERVALO_CHEQUEO;
+      generacion += 1;
+      clearTimeout(temporizador);
+      programar(generacion, true);
     };
     document.addEventListener('visibilitychange', alVolver);
 
     return () => {
       cancelado = true;
-      clearInterval(interval);
+      clearTimeout(temporizador);
       document.removeEventListener('visibilitychange', alVolver);
     };
   }, [loadCotizaciones]);

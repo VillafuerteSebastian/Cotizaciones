@@ -1,20 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../supabaseClient.js';
 import { ESTADOS, CANCELADA, fmtMoney, fmtDateTime, itemsTotal } from '../utils.js';
 import { StatusStepper, Badge } from './StatusStepper.jsx';
 import ImagenInput from './ImagenInput.jsx';
-import { ImageThumb } from './ImageViewer.jsx';
+import ImagenPerezosa from './ImagenPerezosa.jsx';
 import { useUI } from './UIProvider.jsx';
 import { MotionOverlay, MotionModal } from './Motion.jsx';
 
-function NotasGenerales({ value, imagen, onSave, isSolicitante }) {
+// El detalle NO pide las columnas `imagen` ni `imagen_notas`: esas son las
+// fotos en base64 y son, de lejos, lo más pesado de la base. En su lugar pide
+// las columnas generadas `tiene_imagen` / `tiene_imagen_notas` (un booleano),
+// y la foto se descarga solo si alguien la pide con el botón "Ver foto".
+// Abrir una cotización pasa de bajar cientos de KB a bajar unos 2 KB.
+// Ojo: `proveedor_id` y `cotizado_por_trabajador_id` tienen que venir aunque
+// la tabla muestre los nombres por el join. El formulario de edición los usa
+// como valor inicial de sus desplegables, y si faltan, editar el precio de un
+// producto le borraría el proveedor y le cambiaría quién lo cotizó.
+const SELECT_DETALLE =
+  'select=id,folio,escuela,titulo,solicitante_nombre,estado,created_at,updated_at,notas_generales,tiene_imagen_notas,' +
+  'cotizacion_items(id,producto,descripcion,cantidad,precio_final,notas,created_at,tiene_imagen,' +
+  'proveedor_id,cotizado_por_trabajador_id,' +
+  'proveedor:proveedores(nombre),cotizado:trabajadores_cyber(nombre))';
+
+function NotasGenerales({ cotizacionId, value, tieneImagen, onSave, isSolicitante }) {
   const [v, setV] = useState(value);
-  const [img, setImg] = useState(imagen);
+  // `img` arranca en 'sin-tocar': significa "hay o no hay foto guardada, pero
+  // no la hemos descargado y no la vamos a modificar". Solo pasa a ser un
+  // data URL (o null) si la persona cambia la foto, y solo entonces se manda
+  // al guardar. Así editar una nota no reenvía ni borra la foto existente.
+  const [img, setImg] = useState('sin-tocar');
   const [saved, setSaved] = useState(true);
   useEffect(() => {
     setV(value);
-    setImg(imagen);
-  }, [value, imagen]);
+    setImg('sin-tocar');
+  }, [value, tieneImagen]);
+
+  const imgTocada = img !== 'sin-tocar';
+
   return (
     <div className="field">
       <textarea
@@ -27,13 +49,32 @@ function NotasGenerales({ value, imagen, onSave, isSolicitante }) {
         placeholder={isSolicitante ? 'Lista de productos a cotizar, uno por línea…' : 'Sin productos anotados.'}
       />
       <div style={{ marginTop: 8 }}>
+        {tieneImagen && !imgTocada && (
+          <div className="action-row" style={{ marginBottom: 6 }}>
+            <ImagenPerezosa
+              tabla="cotizaciones"
+              id={cotizacionId}
+              columna="imagen_notas"
+              hay={true}
+              alt="lista"
+              size={90}
+            />
+            <button type="button" className="link-btn" onClick={() => { setImg(null); setSaved(false); }}>
+              Quitar foto
+            </button>
+          </div>
+        )}
         <ImagenInput
-          value={img}
+          value={imgTocada ? img : null}
           onChange={(dataUrl) => {
             setImg(dataUrl);
             setSaved(false);
           }}
-          label="Foto de la lista (opcional, ej. captura de Excel)"
+          label={
+            tieneImagen && !imgTocada
+              ? 'Reemplazar la foto de la lista (opcional)'
+              : 'Foto de la lista (opcional, ej. captura de Excel)'
+          }
         />
       </div>
       {!saved && (
@@ -41,8 +82,9 @@ function NotasGenerales({ value, imagen, onSave, isSolicitante }) {
           className="btn btn-ghost btn-sm"
           style={{ marginTop: 6 }}
           onClick={async () => {
-            await onSave(v, img);
+            await onSave(v, imgTocada ? img : undefined);
             setSaved(true);
+            setImg('sin-tocar');
           }}
         >
           Guardar
@@ -90,7 +132,11 @@ function ItemFormCotizador({ initial, proveedores, trabajadoresCyber, activeWork
   const [precio, setPrecio] = useState(initial?.precio_final ?? '');
   const [cantidad, setCantidad] = useState(initial?.cantidad ?? 1);
   const [notas, setNotas] = useState(initial?.notas || '');
-  const [imagen, setImagen] = useState(initial?.imagen || null);
+  // Igual que en las notas generales: 'sin-tocar' = no descargamos la foto ni
+  // la vamos a modificar. Editar el precio de un producto ya no arrastra su
+  // foto de ida y de vuelta.
+  const [imagen, setImagen] = useState(initial ? 'sin-tocar' : null);
+  const imagenTocada = imagen !== 'sin-tocar';
   const [cotizadoPor, setCotizadoPor] = useState(initial?.cotizado_por_trabajador_id || (activeWorker ? activeWorker.id : ''));
   const [nuevoProv, setNuevoProv] = useState(false);
   const [nuevoProvNombre, setNuevoProvNombre] = useState('');
@@ -112,16 +158,17 @@ function ItemFormCotizador({ initial, proveedores, trabajadoresCyber, activeWork
         pid = created[0].id;
         await reloadProveedores();
       }
-      await onSave({
+      const payload = {
         producto: producto.trim(),
         descripcion: descripcion.trim() || null,
         proveedor_id: pid,
         precio_final: precio === '' ? null : Number(precio),
         cantidad: Number(cantidad) || 1,
         notas: notas.trim() || null,
-        imagen: imagen || null,
         cotizado_por_trabajador_id: cotizadoPor || null,
-      });
+      };
+      if (imagenTocada) payload.imagen = imagen || null;
+      await onSave(payload);
     } catch (ex) {
       setErr(ex.message);
     } finally {
@@ -193,7 +240,28 @@ function ItemFormCotizador({ initial, proveedores, trabajadoresCyber, activeWork
             ))}
           </select>
         </div>
-        <ImagenInput value={imagen} onChange={setImagen} />
+        <div className="field">
+          {initial?.tiene_imagen && !imagenTocada && (
+            <div className="action-row" style={{ marginBottom: 6 }}>
+              <ImagenPerezosa
+                tabla="cotizacion_items"
+                id={initial.id}
+                columna="imagen"
+                hay={true}
+                alt={initial.producto}
+                size={70}
+              />
+              <button type="button" className="link-btn" onClick={() => setImagen(null)}>
+                Quitar
+              </button>
+            </div>
+          )}
+          <ImagenInput
+            value={imagenTocada ? imagen : null}
+            onChange={setImagen}
+            label={initial?.tiene_imagen && !imagenTocada ? 'Reemplazar foto (opcional)' : 'Foto (opcional)'}
+          />
+        </div>
       </div>
       <div className="field">
         <label>Notas de proceso (opcional)</label>
@@ -231,13 +299,31 @@ export default function CotizacionDetail({
   const [showAddCotizador, setShowAddCotizador] = useState(false);
   const isCotizador = profile.role === 'cotizador';
   const isSolicitante = profile.role === 'solicitante';
-  const { confirmar } = useUI();
+  const { confirmar, toast } = useUI();
+
+  const [falloCarga, setFalloCarga] = useState('');
+  // En refs y no en las dependencias de `load`: si `load` dependiera de `c`,
+  // cada carga cambiaría `c`, que recrearía `load`, que dispararía el efecto
+  // de abajo otra vez. Bucle infinito de peticiones.
+  const cRef = useRef(null);
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
 
   const load = useCallback(async () => {
-    const data = await api.get(
-      `cotizaciones?id=eq.${id}&select=*,cotizacion_items(*,proveedor:proveedores(nombre),cotizado:trabajadores_cyber(nombre))`
-    );
-    setC(data[0]);
+    try {
+      const data = await api.get(`cotizaciones?id=eq.${id}&${SELECT_DETALLE}`);
+      cRef.current = data[0];
+      setC(data[0]);
+      setFalloCarga('');
+    } catch (ex) {
+      // Si la ventana ya estaba abierta con datos buenos (p. ej. se cayó la
+      // red justo después de guardar), no se tira lo que hay: basta un aviso.
+      // La pantalla de error completa es solo para cuando no se pudo abrir,
+      // y el caso típico ahí es haber desplegado la app sin correr todavía
+      // optimizacion_egress.sql, así que faltan las columnas tiene_imagen*.
+      if (cRef.current) toastRef.current('No se pudo recargar: ' + ex.message, 'error');
+      else setFalloCarga(ex.message);
+    }
   }, [id]);
 
   useEffect(() => {
@@ -286,12 +372,40 @@ export default function CotizacionDetail({
     await log('Cambió estado', `#${c.folio} → ${estado}`);
   };
 
+  // `imagen_notas` llega como `undefined` cuando la persona no tocó la foto:
+  // en ese caso ni se menciona en el PATCH, así que no se reenvía (ahorra
+  // subida) ni se borra por accidente.
   const saveNotas = async (notas_generales, imagen_notas) => {
     if (onTouch) onTouch(id);
-    await api.patch(`cotizaciones?id=eq.${id}`, { notas_generales, imagen_notas: imagen_notas || null });
+    const patch = { notas_generales };
+    if (imagen_notas !== undefined) patch.imagen_notas = imagen_notas || null;
+    await api.patch(`cotizaciones?id=eq.${id}`, patch);
+    await load();
     onChanged();
   };
 
+  if (falloCarga && !c) {
+    return (
+      <MotionOverlay onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <MotionModal>
+          <div className="modal-top">
+            <h2>No se pudo abrir la cotización</h2>
+            <button className="x-btn" onClick={onClose}>✕</button>
+          </div>
+          <div className="err" style={{ whiteSpace: 'pre-wrap' }}>{falloCarga}</div>
+          <p className="hint">
+            Si el mensaje habla de una columna que no existe (tiene_imagen o
+            tiene_imagen_notas), falta ejecutar <code>optimizacion_egress.sql</code>{' '}
+            en el SQL Editor de Supabase.
+          </p>
+          <div className="action-row">
+            <button className="btn btn-primary btn-sm" onClick={load}>Reintentar</button>
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>Cerrar</button>
+          </div>
+        </MotionModal>
+      </MotionOverlay>
+    );
+  }
   if (!c) return null;
   const total = itemsTotal(c.cotizacion_items);
 
@@ -350,7 +464,13 @@ export default function CotizacionDetail({
 
         <div className="divider" />
         <div className="section-label">{isSolicitante ? 'Productos a cotizar (tu lista)' : 'Productos que pidió Ocampo'}</div>
-        <NotasGenerales value={c.notas_generales || ''} imagen={c.imagen_notas || null} onSave={saveNotas} isSolicitante={isSolicitante} />
+        <NotasGenerales
+          cotizacionId={c.id}
+          value={c.notas_generales || ''}
+          tieneImagen={Boolean(c.tiene_imagen_notas)}
+          onSave={saveNotas}
+          isSolicitante={isSolicitante}
+        />
 
         <div className="divider" />
         <div className="section-label">Productos cotizados ({(c.cotizacion_items || []).length})</div>
@@ -397,9 +517,16 @@ export default function CotizacionDetail({
               ) : (
                 <tr key={it.id}>
                   <td data-label="Producto">
-                    {it.imagen && (
-                      <ImageThumb src={it.imagen} alt={it.producto} size={46} style={{ marginBottom: 4 }} />
-                    )}
+                    <ImagenPerezosa
+                      tabla="cotizacion_items"
+                      id={it.id}
+                      columna="imagen"
+                      hay={it.tiene_imagen}
+                      alt={it.producto}
+                      size={46}
+                      style={{ marginBottom: 4 }}
+                    />
+
                     {it.producto}
                     {it.descripcion && <div className="item-notas">{it.descripcion}</div>}
                   </td>
