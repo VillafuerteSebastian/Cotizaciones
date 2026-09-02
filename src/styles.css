@@ -1158,6 +1158,17 @@ button:disabled {
 
   position: relative;
 
+  /* Dentro de .col (flex-direction: column, overflow-y: auto en
+     escritorio) un flex item se puede encoger por debajo de su alto
+     de contenido -- el "auto-mínimo" de flexbox se vuelve 0 en cuanto
+     el contenedor tiene overflow distinto de visible. Sin esto, una
+     columna con varias tarjetas (Apartados, con más campos y los
+     botones de card-actions, lo sufre primero) las aplasta a todas
+     para caber en max-height en vez de dejar que la columna haga
+     scroll, y el contenido aplastado queda cortado por el
+     overflow:hidden de aquí abajo. */
+  flex-shrink: 0;
+
   margin-bottom: 10px;
 
   padding: 15px;
@@ -1251,6 +1262,8 @@ button:disabled {
 .card .meta {
 
   display: flex;
+
+  flex-wrap: wrap;
 
   justify-content: space-between;
 
@@ -2067,22 +2080,49 @@ tbody tr:last-child td {
   gap: 10px;
 
   margin: 4px 0 20px;
+
+  /* Mismo motivo que el flex-shrink de .card: es hijo directo de .col
+     y no debe achicarse cuando la columna no tiene espacio de sobra. */
+  flex-shrink: 0;
 }
 
 /* Fila de botones de acción dentro de una tarjeta (avanzar/retroceder/
    eliminar en Apartados). Misma razón que .pager-row: no depender de
-   ".row" para que no la convierta en grilla de formulario en móvil. */
+   ".row" para que no la convierta en grilla de formulario en móvil.
+   Antes usaba flex-wrap: wrap, pero en pantallas muy angostas un solo
+   botón (ej. "← Llegó a tienda") puede ser más ancho que la tarjeta
+   completa; como .card tiene overflow:hidden, ese botón quedaba
+   cortado/invisible en vez de simplemente pasar a otra línea. En vez
+   de encoger los botones (los vuelve ilegibles), se deja la fila en
+   una sola línea con scroll horizontal propio — igual que el tablero
+   de cotizaciones resuelve el espacio con scroll, no achicando todo. */
 .card-actions {
 
   display: flex;
 
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 
   align-items: center;
 
   gap: 6px;
 
   margin-top: 10px;
+
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.card-actions::-webkit-scrollbar {
+  height: 5px;
+}
+
+.card-actions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.card-actions::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 20px;
 }
 
 /* Uso general para cualquier grupo de botones/acciones (badges +
