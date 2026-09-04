@@ -60,6 +60,20 @@ export function clearSession() {
   localStorage.removeItem('sb_session');
 }
 
+// Recordar el último usuario que inició sesión en este navegador (no la
+// contraseña: guardarla en texto plano en localStorage sería inseguro).
+// Así, si la sesión expira por tiempo, el campo Usuario ya viene lleno y
+// solo hace falta volver a escribir la contraseña.
+export function loadRememberedUsername() {
+  return localStorage.getItem('remembered_username') || '';
+}
+export function saveRememberedUsername(username) {
+  localStorage.setItem('remembered_username', username);
+}
+export function clearRememberedUsername() {
+  localStorage.removeItem('remembered_username');
+}
+
 export async function login(username, password) {
   const email = usernameToEmail(username);
   const res = await fetch(`${S.url}/auth/v1/token?grant_type=password`, {

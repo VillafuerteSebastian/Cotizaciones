@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { login, S } from '../supabaseClient.js';
+import {
+  login,
+  S,
+  loadRememberedUsername,
+  saveRememberedUsername,
+  clearRememberedUsername,
+} from '../supabaseClient.js';
 import { motion, AnimatePresence } from './Motion.jsx';
 
 export default function LoginScreen({ onLogin, onReconfigure }) {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(() => loadRememberedUsername());
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(() => Boolean(loadRememberedUsername()));
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -14,6 +21,11 @@ export default function LoginScreen({ onLogin, onReconfigure }) {
     setBusy(true);
     try {
       const user = await login(username, password);
+      if (remember) {
+        saveRememberedUsername(username);
+      } else {
+        clearRememberedUsername();
+      }
       await onLogin(user);
     } catch (ex) {
       setErr(ex.message);
@@ -61,6 +73,14 @@ export default function LoginScreen({ onLogin, onReconfigure }) {
             <label>Contraseña</label>
             <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
+          <label className="remember-row">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            Recordar usuario en este dispositivo
+          </label>
           <motion.button
             className="btn btn-primary btn-block"
             disabled={busy}

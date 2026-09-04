@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { api } from '../supabaseClient.js';
 import { fmtDateTime, PRIORIDADES_FALTANTE, prioridadFaltanteInfo } from '../utils.js';
 import Pager, { usePager } from './Pager.jsx';
@@ -14,12 +14,15 @@ const POR_PAGINA = 20;
 // prioridad actual (texto blanco) para que se note de un vistazo,
 // incluso sin abrir el desplegable. Cambiar el valor ya guarda de una
 // vez (sin botón aparte).
-function PrioridadSelect({ value, onChange }) {
+// `showColor` se apaga para los faltantes ya resueltos: la urgencia ya no
+// importa una vez atendido, así que el select vuelve a verse neutro en
+// vez de la píldora de color.
+function PrioridadSelect({ value, onChange, showColor = true }) {
   const info = prioridadFaltanteInfo(value);
   return (
     <select
-      className="prioridad-select"
-      style={{ backgroundColor: info.color }}
+      className={`prioridad-select${showColor ? '' : ' prioridad-select-plano'}`}
+      style={showColor ? { backgroundColor: info.color } : undefined}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onClick={(e) => e.stopPropagation()}
@@ -30,6 +33,35 @@ function PrioridadSelect({ value, onChange }) {
         </option>
       ))}
     </select>
+  );
+}
+
+// Input de la nota directamente en la fila de "Pendientes": mantiene su
+// propio estado mientras se escribe y solo guarda (PATCH) al perder el
+// foco, y solo si el texto realmente cambió.
+function NotaEditable({ value, onSave }) {
+  const [val, setVal] = useState(value || '');
+
+  useEffect(() => {
+    setVal(value || '');
+  }, [value]);
+
+  const guardar = () => {
+    const limpio = val.trim();
+    if (limpio !== (value || '').trim()) {
+      onSave(limpio || null);
+    }
+  };
+
+  return (
+    <input
+      className="nota-inline-input"
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={guardar}
+      onClick={(e) => e.stopPropagation()}
+      placeholder="Sin notas"
+    />
   );
 }
 
@@ -64,7 +96,7 @@ function FiltroPrioridad({ value, onChange, conteos }) {
   );
 }
 
-function TablaFaltantes({ titulo, items, onToggle, onDelete, onPrioridad, vacio }) {
+function TablaFaltantes({ titulo, items, onToggle, onDelete, onPrioridad, vacio, notasEditable, onNotas, colorPrioridad = true }) {
   const { pageItems, page, setPage, totalPages } = usePager(items, POR_PAGINA);
   return (
     <div className="cat-card" style={{ marginBottom: 0 }}>
@@ -90,11 +122,17 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, onPrioridad, vacio 
             {pageItems.map((f) => {
               const info = prioridadFaltanteInfo(f.prioridad || 'media');
               return (
-              <tr key={f.id} style={{ background: info.soft }}>
+              <tr key={f.id} style={colorPrioridad ? { background: info.soft } : undefined}>
                 <td data-label="Producto" style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>{f.producto}</td>
-                <td data-label="Notas" className="item-notas">{f.notas || '—'}</td>
+                <td data-label="Notas" className="item-notas">
+                  {notasEditable ? (
+                    <NotaEditable value={f.notas} onSave={(nota) => onNotas(f, nota)} />
+                  ) : (
+                    f.notas || '—'
+                  )}
+                </td>
                 <td data-label="Prioridad">
-                  <PrioridadSelect value={f.prioridad || 'media'} onChange={(p) => onPrioridad(f, p)} />
+                  <PrioridadSelect value={f.prioridad || 'media'} onChange={(p) => onPrioridad(f, p)} showColor={colorPrioridad} />
                 </td>
                 <td data-label="Veces">{f.veces_reportado > 1 ? `×${f.veces_reportado}` : '—'}</td>
                 <td data-label="Última vez" className="item-time">{fmtDateTime(f.ultima_vez || f.created_at)}</td>
@@ -253,6 +291,17 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
     }
   };
 
+  const cambiarNota = async (f, nota) => {
+    if ((nota || null) === (f.notas || null)) return;
+    try {
+      await api.patch(`productos_faltantes?id=eq.${f.id}`, { notas: nota });
+      await log('Editó nota de faltante', f.producto);
+      await reload();
+    } catch (ex) {
+      toast('No se pudo actualizar la nota: ' + ex.message, 'error');
+    }
+  };
+
   const cambiarPrioridad = async (f, nuevaPrioridad) => {
     if (nuevaPrioridad === f.prioridad) return;
     try {
@@ -305,6 +354,8 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
           onToggle={toggleResuelto}
           onDelete={del}
           onPrioridad={cambiarPrioridad}
+          notasEditable
+          onNotas={cambiarNota}
           vacio={filtroPrioridad ? 'Nada pendiente con esa prioridad.' : 'Nada pendiente 🎉'}
         />
         <TablaFaltantes
@@ -313,6 +364,7 @@ export default function FaltantesScreen({ profile, activeWorker, faltantes, relo
           onToggle={toggleResuelto}
           onDelete={del}
           onPrioridad={cambiarPrioridad}
+          colorPrioridad={false}
           vacio={filtroPrioridad ? 'Nada resuelto con esa prioridad.' : 'Aún no hay nada resuelto.'}
         />
       </div>
