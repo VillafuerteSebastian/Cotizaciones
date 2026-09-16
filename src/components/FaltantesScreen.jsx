@@ -106,51 +106,54 @@ function TablaFaltantes({ titulo, items, onToggle, onDelete, onPrioridad, vacio,
       {items.length === 0 ? (
         <div className="empty-col">{vacio}</div>
       ) : (
-        <div className="table-wrap table-excel no-inner-scroll">
-        <table className="table-mobile-cards">
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Notas</th>
-              <th>Prioridad</th>
-              <th>Veces</th>
-              <th>Última vez</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((f) => {
-              const info = prioridadFaltanteInfo(f.prioridad || 'media');
-              return (
-              <tr key={f.id} style={colorPrioridad ? { background: info.soft } : undefined}>
-                <td data-label="Producto" style={{ textDecoration: f.resuelto ? 'line-through' : 'none' }}>{f.producto}</td>
-                <td data-label="Notas" className="item-notas">
-                  {notasEditable ? (
-                    <NotaEditable value={f.notas} onSave={(nota) => onNotas(f, nota)} />
-                  ) : (
-                    f.notas || '—'
-                  )}
-                </td>
-                <td data-label="Prioridad">
-                  <PrioridadSelect value={f.prioridad || 'media'} onChange={(p) => onPrioridad(f, p)} showColor={colorPrioridad} />
-                </td>
-                <td data-label="Veces">{f.veces_reportado > 1 ? `×${f.veces_reportado}` : '—'}</td>
-                <td data-label="Última vez" className="item-time">{fmtDateTime(f.ultima_vez || f.created_at)}</td>
-                <td data-label="Acciones">
-                  <div className="action-row" style={{ gap: 4 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => onToggle(f)}>
-                      {f.resuelto ? 'Reabrir' : 'Resuelto'}
-                    </button>
-                    <button className="x-btn" onClick={() => onDelete(f)} title="Eliminar">
-                      ✕
-                    </button>
+        // Lista en vez de <table>: cada faltante es una fila de grid que se
+        // reacomoda según el ancho del panel (container query), así los
+        // botones de Resuelto/Reabrir siempre quedan visibles, ya sea con
+        // las dos listas lado a lado o en un teléfono.
+        <div className="faltantes-list">
+          <div className="faltante-head" aria-hidden="true">
+            <span>Producto / notas</span>
+            <span>Prioridad</span>
+            <span>Veces</span>
+            <span>Última vez</span>
+            <span></span>
+          </div>
+          {pageItems.map((f) => {
+            const info = prioridadFaltanteInfo(f.prioridad || 'media');
+            return (
+              <div
+                key={f.id}
+                className={`faltante-item${f.resuelto ? ' is-resuelto' : ''}`}
+                style={colorPrioridad ? { background: info.soft, '--faltante-accent': info.color } : undefined}
+              >
+                <div className="faltante-main">
+                  <div className="faltante-producto">{f.producto}</div>
+                  <div className="faltante-notas item-notas">
+                    {notasEditable ? <NotaEditable value={f.notas} onSave={(nota) => onNotas(f, nota)} /> : f.notas || 'Sin notas'}
                   </div>
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                </div>
+                <div className="faltante-prioridad">
+                  <PrioridadSelect value={f.prioridad || 'media'} onChange={(p) => onPrioridad(f, p)} showColor={colorPrioridad} />
+                </div>
+                <div className="faltante-veces" title="Veces reportado">
+                  {f.veces_reportado > 1 ? `×${f.veces_reportado}` : '—'}
+                </div>
+                <div className="faltante-fecha item-time">{fmtDateTime(f.ultima_vez || f.created_at)}</div>
+                <div className="faltante-acciones">
+                  <button
+                    type="button"
+                    className={`btn btn-sm faltante-toggle ${f.resuelto ? 'btn-ghost' : 'btn-success'}`}
+                    onClick={() => onToggle(f)}
+                  >
+                    {f.resuelto ? '↺ Reabrir' : '✓ Resuelto'}
+                  </button>
+                  <button type="button" className="x-btn faltante-del" onClick={() => onDelete(f)} title="Eliminar" aria-label={`Eliminar ${f.producto}`}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
       <Pager page={page} totalPages={totalPages} onChange={setPage} />
