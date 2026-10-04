@@ -56,15 +56,19 @@ export const fmtDateTime = (iso) => {
 export const itemsTotal = (items) =>
   (items || []).reduce((sum, it) => sum + Number(it.precio_final || 0) * Number(it.cantidad || 1), 0);
 
-// Licitaciones (Cyber y Ocampo). No es un flujo lineal estricto: se elige el
-// estado a mano desde el detalle.
-export const ESTADOS_LICITACION = [
+// Licitaciones (Cyber y Ocampo). Igual que las cotizaciones: un flujo lineal
+// (abierta → cotizando → oferta enviada → adjudicada) y un estado aparte,
+// "No adjudicada", que funciona como la "Cancelada" de las cotizaciones.
+export const FLUJO_LICITACION = [
   { key: 'abierta', label: 'Abierta', color: '#64748B' },
-  { key: 'cotizando', label: 'Cotizando', color: '#B45309' },
+  { key: 'cotizando', label: 'Cotizando', color: '#C27A0E' },
   { key: 'enviada', label: 'Oferta enviada', color: '#004AAD' },
   { key: 'adjudicada', label: 'Adjudicada', color: '#15803D' },
-  { key: 'no_adjudicada', label: 'No adjudicada', color: '#B91C1C' },
 ];
+
+export const NO_ADJUDICADA = { key: 'no_adjudicada', label: 'No adjudicada', color: '#C2282B' };
+
+export const ESTADOS_LICITACION = [...FLUJO_LICITACION, NO_ADJUDICADA];
 
 export const estadoLicitacionInfo = (k) => ESTADOS_LICITACION.find((e) => e.key === k) || ESTADOS_LICITACION[0];
 

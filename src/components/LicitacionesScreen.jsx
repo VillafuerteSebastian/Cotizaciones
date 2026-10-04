@@ -1,9 +1,10 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { api } from '../supabaseClient.js';
-import { ESTADOS_LICITACION, estadoLicitacionInfo, fmtMoney, fmtFecha, fmtDateTime, diasHasta } from '../utils.js';
+import { ESTADOS_LICITACION, FLUJO_LICITACION, NO_ADJUDICADA, estadoLicitacionInfo, fmtMoney, fmtFecha, fmtDateTime, diasHasta } from '../utils.js';
 import { leerExcel, detectarEncabezado, construirTabla, detectarColumnas, aNumero } from '../excel.js';
 import FormModal from './FormModal.jsx';
 import Icon from './Icons.jsx';
+import { StatusStepper } from './StatusStepper.jsx';
 import { useUI } from './UIProvider.jsx';
 import { AnimatePresence } from './Motion.jsx';
 
@@ -68,6 +69,9 @@ function LicitacionRow({ l, onOpen }) {
           {l.institucion || 'Sin institución'}
           {l.creado_por_nombre ? ` · subida por ${l.creado_por_nombre}` : ''} · {fmtDateTime(l.created_at)}
         </p>
+        <div className="lic-row-stepper">
+          <StatusStepper estado={l.estado} estados={FLUJO_LICITACION} especial={NO_ADJUDICADA} />
+        </div>
       </div>
       <div className="lic-row-side">
         <div className="lic-progress" aria-label={`${r.cotizados} de ${r.renglones} renglones cotizados`}>

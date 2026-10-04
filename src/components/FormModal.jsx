@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { MotionOverlay, MotionModal } from './Motion.jsx';
 
 /**
@@ -14,17 +14,10 @@ import { MotionOverlay, MotionModal } from './Motion.jsx';
  * se comporta igual que agregar una cotización, en escritorio y en teléfono.
  */
 export default function FormModal({ title, subtitle, onClose, maxWidth = 460, children }) {
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
     <MotionOverlay
       className="nueva-cotizacion-overlay app-form-overlay"
+      onEscape={onClose}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

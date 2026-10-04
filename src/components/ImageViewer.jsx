@@ -34,6 +34,7 @@ export function ImageThumb({ src, alt, size = 46, style, radius = 6 }) {
         {open && (
           <MotionOverlay
             style={{ zIndex: 300 }}
+            onEscape={() => setOpen(false)}
             onClick={(e) => {
               e.stopPropagation();
               if (e.target === e.currentTarget) setOpen(false);

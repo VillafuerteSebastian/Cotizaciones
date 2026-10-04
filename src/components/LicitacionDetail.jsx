@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../supabaseClient.js';
-import { ESTADOS_LICITACION, estadoLicitacionInfo, fmtMoney, fmtFecha } from '../utils.js';
+import { FLUJO_LICITACION, NO_ADJUDICADA, estadoLicitacionInfo, fmtMoney, fmtFecha } from '../utils.js';
 import { aNumero, exportarLicitacion, sugerir } from '../excel.js';
 import { PlazoChip } from './LicitacionesScreen.jsx';
 import Pager, { usePager } from './Pager.jsx';
@@ -135,6 +135,70 @@ function Sugerencias({ lista, onUsar }) {
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Estado de la licitación, en el espíritu de las cotizaciones (pasos visibles,
+ * se cambia con un clic) pero en una sola barra: cada paso es un botón, los
+ * anteriores quedan marcados como hechos y hay un atajo para avanzar al
+ * siguiente. "No adjudicada" va aparte, como la "Cancelada" de cotizaciones.
+ */
+function EstadoLicitacion({ estado, onCambiar }) {
+  const [cambiando, setCambiando] = useState(null);
+  const cambiar = async (key) => {
+    if (key === estado || cambiando) return;
+    setCambiando(key);
+    await onCambiar(key);
+    setCambiando(null);
+  };
+
+  if (estado === NO_ADJUDICADA.key) {
+    return (
+      <section className="lic-flow lic-flow-cerrada" aria-label="Estado de la licitación">
+        <div className="lic-flow-cerrada-text">
+          <strong>No adjudicada</strong>
+          <span>Esta licitación quedó cerrada sin adjudicar.</span>
+        </div>
+        <button type="button" className="btn btn-ghost btn-sm" disabled={Boolean(cambiando)} onClick={() => cambiar('cotizando')}>
+          ↺ Reabrir licitación
+        </button>
+      </section>
+    );
+  }
+
+  const idx = Math.max(0, FLUJO_LICITACION.findIndex((e) => e.key === estado));
+  const siguiente = FLUJO_LICITACION[idx + 1];
+
+  return (
+    <section className="lic-flow" aria-label="Estado de la licitación">
+      <ol className="lic-flow-steps">
+        {FLUJO_LICITACION.map((e, i) => (
+          <li key={e.key} className={`lic-flow-step${i < idx ? ' done' : ''}${i === idx ? ' current' : ''}`} style={{ '--sc': e.color }}>
+            <button
+              type="button"
+              onClick={() => cambiar(e.key)}
+              disabled={Boolean(cambiando)}
+              aria-current={i === idx ? 'step' : undefined}
+              title={i === idx ? 'Estado actual' : `Cambiar a ${e.label}`}
+            >
+              <span className="lic-flow-dot">{i < idx ? <Icon name="check" size={11} strokeWidth={3} /> : null}</span>
+              <span className="lic-flow-label">{cambiando === e.key ? 'Guardando…' : e.label}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <div className="lic-flow-actions">
+        {siguiente && (
+          <button type="button" className="btn btn-primary btn-sm" disabled={Boolean(cambiando)} onClick={() => cambiar(siguiente.key)}>
+            Pasar a {siguiente.label} →
+          </button>
+        )}
+        <button type="button" className="lic-flow-cerrar" disabled={Boolean(cambiando)} onClick={() => cambiar(NO_ADJUDICADA.key)}>
+          Marcar como no adjudicada
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -441,7 +505,8 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
     );
   }
 
-  const est = estadoLicitacionInfo(lic.estado);
+  const cambiarEstado = (key) =>
+    actualizarCabecera({ estado: key }, ['Cambió estado de licitación', `L-${lic.folio} → ${estadoLicitacionInfo(key).label}`]);
   const totalCols = 1 + columnasVisibles.length + 6;
 
   return (
@@ -465,24 +530,6 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
           {lic.notas && <p className="lic-notas">{lic.notas}</p>}
         </div>
         <div className="lic-head-actions">
-          <select
-            className="estado-select"
-            style={{ '--ec': est.color }}
-            value={lic.estado}
-            aria-label="Estado de la licitación"
-            onChange={(e) =>
-              actualizarCabecera({ estado: e.target.value }, [
-                'Cambió estado de licitación',
-                `L-${lic.folio} → ${estadoLicitacionInfo(e.target.value).label}`,
-              ])
-            }
-          >
-            {ESTADOS_LICITACION.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditando(true)}>
             Editar datos
           </button>
@@ -492,6 +539,8 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
           </button>
         </div>
       </header>
+
+      <EstadoLicitacion estado={lic.estado} onCambiar={cambiarEstado} />
 
       <section className="lic-stats" aria-label="Resumen">
         <div className="lic-stat lic-stat-wide">

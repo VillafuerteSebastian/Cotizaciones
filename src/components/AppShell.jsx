@@ -602,7 +602,7 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
         <div className="brand">Cotizaciones</div>
         <div className="brand-sub">y encargos</div>
         <NavItem active={tab === 'tablero'} onClick={() => setTab('tablero')} icon="tablero" label="Tablero" />
-        <NavItem active={tab === 'licitaciones'} onClick={() => setTab('licitaciones')} icon="licitaciones" label="Licitaciones" />
+        <NavItem active={tab === 'licitaciones'} onClick={() => { setTab('licitaciones'); setLicId(null); }} icon="licitaciones" label="Licitaciones" />
         {isCotizador && (
           <NavItem active={tab === 'proveedores'} onClick={() => setTab('proveedores')} icon="proveedores" label="Proveedores" />
         )}

@@ -1,18 +1,20 @@
 import React from 'react';
 import { ESTADOS, CANCELADA, estadoInfo } from '../utils.js';
 
-export function StatusStepper({ estado }) {
-  if (estado === CANCELADA.key) {
+// Por defecto dibuja el flujo de cotizaciones; licitaciones le pasa su propio
+// flujo (`estados`) y su estado "fuera del flujo" (`especial`, ej. No adjudicada).
+export function StatusStepper({ estado, estados = ESTADOS, especial = CANCELADA }) {
+  if (especial && estado === especial.key) {
     return (
       <div className="stepper stepper-cancelada">
-        <span className="cancelada-pill">✕ Cancelada</span>
+        <span className="cancelada-pill">✕ {especial.label}</span>
       </div>
     );
   }
-  const idx = ESTADOS.findIndex((e) => e.key === estado);
+  const idx = estados.findIndex((e) => e.key === estado);
   return (
     <div className="stepper">
-      {ESTADOS.map((e, i) => (
+      {estados.map((e, i) => (
         <React.Fragment key={e.key}>
           {i > 0 && <div className={`bar ${i <= idx ? 'done' : ''}`} style={{ '--sc': e.color }} />}
           <div
@@ -26,11 +28,11 @@ export function StatusStepper({ estado }) {
   );
 }
 
-export function Badge({ estado }) {
-  const info = estadoInfo(estado);
+export function Badge({ estado, info }) {
+  const i = info || estadoInfo(estado);
   return (
-    <span className="badge" style={{ background: info.color }}>
-      {info.label}
+    <span className="badge" style={{ background: i.color }}>
+      {i.label}
     </span>
   );
 }

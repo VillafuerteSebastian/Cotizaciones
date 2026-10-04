@@ -6600,24 +6600,174 @@ p {
   gap: 8px;
 }
 
-.estado-select {
-  height: 32px;
-  padding: 0 28px 0 12px;
-  color: var(--ec);
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'%3E%3Cpath d='M1 1l3.5 3.5L8 1' stroke='%234A5870' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 10px center no-repeat,
-    color-mix(in srgb, var(--ec) 9%, white);
-  border: 1px solid color-mix(in srgb, var(--ec) 25%, white);
-  border-radius: 8px;
-  font-size: 12.5px;
-  font-weight: 650;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
+/* ---------- Estado de la licitación ---------- */
+
+.lic-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
 }
 
-.estado-select option {
+.lic-flow-steps {
+  flex: 1 1 520px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lic-flow-step {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Línea que une cada paso con el anterior: se pinta del color del paso
+   cuando ya se llegó a él. */
+.lic-flow-step + .lic-flow-step::before {
+  content: "";
+  flex: 1 1 auto;
+  min-width: 12px;
+  height: 2px;
+  margin: 0 8px;
+  background: var(--line);
+  border-radius: 2px;
+  transition: background .25s ease;
+}
+
+.lic-flow-step.done::before,
+.lic-flow-step.current::before {
+  background: var(--sc);
+}
+
+.lic-flow-step:first-child {
+  flex: 0 0 auto;
+}
+
+.lic-flow-step button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px 10px 6px 6px;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.lic-flow-step button:hover:not(:disabled) {
   color: var(--ink);
+  background: var(--surface-soft);
+  border-color: var(--line);
+}
+
+.lic-flow-dot {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: var(--surface);
+  border: 2px solid var(--line-dark);
+  border-radius: 50%;
+  transition: background .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+
+.lic-flow-step.done button {
+  color: var(--ink-soft);
+}
+
+.lic-flow-step.done .lic-flow-dot {
+  background: var(--sc);
+  border-color: var(--sc);
+}
+
+.lic-flow-step.current button {
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 8%, white);
+  border-color: color-mix(in srgb, var(--sc) 22%, white);
+  font-weight: 650;
+  cursor: default;
+}
+
+.lic-flow-step.current .lic-flow-dot {
+  border-color: var(--sc);
+  background: radial-gradient(circle, var(--sc) 0 4px, var(--surface) 4.5px);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc) 14%, transparent);
+}
+
+.lic-flow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.lic-flow-cerrar {
+  padding: 4px 2px;
+  color: var(--ink-muted);
+  background: none;
+  border: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-color: var(--line-dark);
+  text-underline-offset: 3px;
+  transition: color .15s ease, text-decoration-color .15s ease;
+}
+
+.lic-flow-cerrar:hover:not(:disabled) {
+  color: var(--danger);
+  text-decoration-color: currentColor;
+}
+
+.lic-flow-cerrada {
+  background: var(--danger-soft);
+  border-color: #F3D3D4;
+}
+
+.lic-flow-cerrada-text {
+  display: grid;
+  gap: 2px;
+}
+
+.lic-flow-cerrada-text strong {
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.lic-flow-cerrada-text span {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.lic-row-stepper {
+  max-width: 220px;
+  margin-top: 10px;
+}
+
+.lic-row-stepper .stepper .dot {
+  width: 8px;
+  height: 8px;
 }
 
 .lic-stats {
@@ -6761,9 +6911,9 @@ p {
 .row-dot.error { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 
 .lic-grid .col-orig { min-width: 90px; }
-.lic-grid .col-orig.col-desc { min-width: 260px; width: 28%; }
-.lic-grid .col-producto { min-width: 220px; width: 20%; }
-.lic-grid .col-proveedor { min-width: 170px; }
+.lic-grid .col-orig.col-desc { min-width: 220px; width: 24%; }
+.lic-grid .col-producto { min-width: 190px; width: 18%; }
+.lic-grid .col-proveedor { min-width: 150px; }
 .lic-grid .col-precio { width: 120px; }
 .lic-grid .col-notas { min-width: 150px; }
 .lic-grid .col-x { width: 40px; padding-top: 5px; }
@@ -6934,6 +7084,36 @@ textarea.celda {
 
   .lic-head h2 {
     font-size: 22px;
+  }
+
+  .lic-flow {
+    padding: 12px;
+  }
+
+  .lic-flow-steps {
+    flex-basis: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .lic-flow-step,
+  .lic-flow-step:not(:first-child) {
+    flex: none;
+  }
+
+  .lic-flow-step + .lic-flow-step::before {
+    display: none;
+  }
+
+  .lic-flow-step button {
+    width: 100%;
+    border-color: var(--line);
+  }
+
+  .lic-flow-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .lic-toolbar-right {

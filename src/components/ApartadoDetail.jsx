@@ -106,6 +106,7 @@ export default function ApartadoDetail({ id, trabajadoresCyber, onClose, onChang
 
   return (
     <MotionOverlay
+      onEscape={onClose}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

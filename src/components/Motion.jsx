@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
@@ -36,9 +37,56 @@ function joinClass(...parts) {
   return parts.filter(Boolean).join(' ');
 }
 
-export function MotionOverlay({ className = '', children, ...rest }) {
+// Ventanas abiertas que se cierran con Esc, en el orden en que se abrieron.
+// Esc solo cierra la de más arriba (p. ej. la confirmación de "¿Eliminar?"
+// y no también el apartado que está detrás).
+const pilaEscape = [];
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || !pilaEscape.length) return;
+    e.preventDefault();
+    pilaEscape[pilaEscape.length - 1].current();
+  });
+}
+
+// Las ventanas se cierran al hacer clic en el fondo. Pero si se presiona
+// dentro de la ventana (por ejemplo, seleccionando texto para copiarlo o
+// borrarlo) y se suelta fuera, el navegador manda el "click" al fondo y la
+// ventana se cerraba sola. Por eso el clic en el fondo solo cuenta si también
+// se presionó sobre el fondo.
+// `onEscape`: qué hacer al presionar Esc con esta ventana encima (cerrarla).
+export function MotionOverlay({ className = '', children, onPointerDown, onClick, onEscape, ...rest }) {
+  const presionEnFondo = useRef(false);
+  const escapeRef = useRef(onEscape);
+  escapeRef.current = onEscape;
+  const tieneEscape = Boolean(onEscape);
+  useEffect(() => {
+    if (!tieneEscape) return undefined;
+    const entrada = { current: () => escapeRef.current && escapeRef.current() };
+    pilaEscape.push(entrada);
+    return () => {
+      const i = pilaEscape.indexOf(entrada);
+      if (i !== -1) pilaEscape.splice(i, 1);
+    };
+  }, [tieneEscape]);
   return (
-    <motion.div className={joinClass('modal-overlay', className)} {...overlayFade} {...rest}>
+    <motion.div
+      className={joinClass('modal-overlay', className)}
+      {...overlayFade}
+      {...rest}
+      onPointerDown={(e) => {
+        presionEnFondo.current = e.target === e.currentTarget;
+        if (onPointerDown) onPointerDown(e);
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !presionEnFondo.current) {
+          // Igual que un clic dentro de la ventana: no debe llegar a lo de atrás.
+          e.stopPropagation();
+          return;
+        }
+        if (onClick) onClick(e);
+      }}
+    >
       {children}
     </motion.div>
   );

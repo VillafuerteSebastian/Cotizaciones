@@ -22,6 +22,7 @@ export default function PinModal({ title, subtitle, confirmLabel = 'Confirmar', 
 
   return (
     <MotionOverlay
+      onEscape={onCancel}
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}

@@ -386,7 +386,7 @@ export default function CotizacionDetail({
 
   if (falloCarga && !c) {
     return (
-      <MotionOverlay onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <MotionOverlay onEscape={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <MotionModal>
           <div className="modal-top">
             <h2>No se pudo abrir la cotización</h2>
@@ -411,6 +411,7 @@ export default function CotizacionDetail({
 
   return (
     <MotionOverlay
+      onEscape={onClose}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

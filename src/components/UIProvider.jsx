@@ -95,6 +95,7 @@ export function UIProvider({ children }) {
         {confirmState && (
           <MotionOverlay
             className="confirm-overlay"
+            onEscape={() => closeConfirm(false)}
             onClick={(e) => {
               if (e.target === e.currentTarget) closeConfirm(false);
             }}
