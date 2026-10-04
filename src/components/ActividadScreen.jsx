@@ -227,9 +227,14 @@ function CajaPanel({ version }) {
     [itemsMostrados]
   );
 
-  const labelMes = mes.toLocaleDateString('es-CR', { month: 'long', year: 'numeric' });
+  // Solo la primera letra en mayúscula: con `text-transform: capitalize`
+  // salía "Octubre De 2026".
+  const mayuscula = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const labelMes = mayuscula(mes.toLocaleDateString('es-CR', { month: 'long', year: 'numeric' }));
   const labelDiaSel = diaSel
-    ? new Date(`${diaSel}T00:00:00`).toLocaleDateString('es-CR', { weekday: 'long', day: '2-digit', month: 'long' })
+    ? mayuscula(
+        new Date(`${diaSel}T00:00:00`).toLocaleDateString('es-CR', { weekday: 'long', day: '2-digit', month: 'long' })
+      )
     : null;
 
   return (
@@ -239,7 +244,7 @@ function CajaPanel({ version }) {
           <div className="section-label" style={{ marginBottom: 2 }}>
             💰 Caja del mes
           </div>
-          <p className="hint" style={{ margin: 0, textTransform: 'capitalize' }}>
+          <p className="hint" style={{ margin: 0 }}>
             {labelMes}
           </p>
         </div>
@@ -303,7 +308,7 @@ function CajaPanel({ version }) {
         <div className="caja-feed">
           <div className="caja-feed-head">
             <div>
-              <div className="section-label" style={{ marginBottom: 2, textTransform: 'capitalize' }}>
+              <div className="section-label" style={{ marginBottom: 2, textTransform: 'none' }}>
                 {diaSel ? labelDiaSel : labelMes}
               </div>
               <p className="hint" style={{ margin: 0 }}>
