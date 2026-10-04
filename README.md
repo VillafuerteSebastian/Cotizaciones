@@ -131,6 +131,32 @@ producción lo correcto es usar las variables de entorno de Vercel.
 Ocampo también puede, si prefiere, seguir agregando productos sueltos
 uno por uno con cantidad (como antes) — es opcional, no obligatorio.
 
+## Licitaciones (Cyber y Ocampo)
+Pestaña nueva, visible para las dos áreas.
+
+**Antes de usarla hay que correr `licitaciones.sql` una vez** en Supabase →
+SQL Editor (también está incluido al final de `schema.sql`). Crea las tablas
+`licitaciones` y `licitacion_items` y un índice para la caja de Actividad.
+
+1. **Subir licitación**: se arrastra el Excel (.xlsx, .xls, .csv, .ods) tal
+   como llegó. La app detecta sola la fila de encabezados (aunque arriba
+   venga el nombre de la institución, el número de trámite, etc.) y cuál
+   columna es la descripción, la cantidad y la unidad; todo se puede
+   corregir en la vista previa antes de crearla.
+2. En el detalle cada renglón conserva sus columnas originales (editables) y
+   se agregan: **producto ofrecido, proveedor, precio unitario, total y
+   notas**. Cada celda se guarda sola al salir de ella.
+3. **Sugerencias**: en los renglones sin precio aparece lo que ya se cotizó
+   antes para algo parecido (en otras licitaciones o en cotizaciones), con
+   producto, proveedor y precio, y un botón "Usar" para llenarlo de un clic.
+4. **Descargar Excel**: baja el archivo con las columnas originales más lo
+   cotizado, listo para armar la oferta.
+5. Arriba se ve el avance (renglones cotizados), el total de la oferta y
+   cuántos días faltan para la fecha límite.
+
+El proveedor se guarda también como texto en cada renglón para que Ocampo
+lo vea (la tabla de proveedores sigue siendo solo de Cyber).
+
 ## Mejoras de seguridad y control incluidas
 - **Nadie puede subirse el rol a sí mismo.** Antes, cualquiera con las
   credenciales podía, con una llamada directa a la API, cambiar su propio

@@ -15,7 +15,10 @@ import ProveedoresScreen from './ProveedoresScreen.jsx';
 import TrabajadoresScreen from './TrabajadoresScreen.jsx';
 import FaltantesScreen from './FaltantesScreen.jsx';
 import ApartadosScreen from './ApartadosScreen.jsx';
-import ActividadScreen from './ActividadScreen.jsx';
+import ActividadScreen, { PREFIJO_CAJA } from './ActividadScreen.jsx';
+import LicitacionesScreen, { SELECT_LISTA_LICITACIONES } from './LicitacionesScreen.jsx';
+import LicitacionDetail from './LicitacionDetail.jsx';
+import Icon from './Icons.jsx';
 import CotizacionDetail from './CotizacionDetail.jsx';
 import NuevaCotizacionModal from './NuevaCotizacionModal.jsx';
 import { useUI } from './UIProvider.jsx';
@@ -33,7 +36,9 @@ function NavItem({ active, onClick, icon, label }) {
           transition={{ type: 'spring', stiffness: 500, damping: 40 }}
         />
       )}
-      <span className="mobile-nav-icon">{icon}</span>
+      <span className="mobile-nav-icon">
+        <Icon name={icon} size={19} />
+      </span>
       <span className="mobile-nav-label">{label}</span>
     </button>
   );
@@ -84,6 +89,7 @@ const VIDA_CATALOGO = 30 * 60 * 1000;
 // ventana con el formulario. En móvil ese botón se vuelve un círculo con "+".
 const ACCION_NUEVO = {
   tablero: { label: 'Nueva cotización', soloAdmin: false },
+  licitaciones: { label: 'Subir licitación', soloAdmin: false },
   proveedores: { label: 'Nuevo proveedor', soloAdmin: true },
   equipo: { label: 'Agregar persona', soloAdmin: true },
   faltantes: { label: 'Nuevo faltante', soloAdmin: false },
@@ -102,6 +108,12 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
   const [faltantes, setFaltantes] = useState([]);
   const [apartados, setApartados] = useState([]);
   const [actividad, setActividad] = useState([]);
+  const [actividadVersion, setActividadVersion] = useState(0);
+  const [actividadHayMas, setActividadHayMas] = useState(false);
+  const actividadLimiteRef = useRef(100);
+  const [licitaciones, setLicitaciones] = useState([]);
+  const [licLoading, setLicLoading] = useState(true);
+  const [licId, setLicId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [showNuevo, setShowNuevo] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -283,17 +295,38 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     const data = await api.get('apartados?select=*&order=created_at.desc');
     setApartados(data);
   }, [isCotizador]);
-  // Se pide columna por columna en vez de `select=*` (sobra profile_id), pero
-  // el límite se queda en 100: con menos, los totales de caja del mes que
-  // calcula ActividadScreen empezarían a quedarse cortos, y son cifras de
-  // dinero. Ahorrar unos KB no vale ese riesgo.
+  // Registros de la bitácora SIN los movimientos de caja: esos los pide la
+  // propia pantalla de Actividad mes por mes (antes salían de estos mismos
+  // 100 registros y los meses anteriores quedaban incompletos). Los registros
+  // se muestran de 100 en 100 con "Cargar registros más antiguos".
+  // `actividadVersion` sube en cada recarga para que la caja también se
+  // vuelva a pedir y refleje movimientos nuevos.
   const loadActividad = useCallback(async () => {
     if (!isCotizador) return;
+    const limite = actividadLimiteRef.current;
     const data = await api.get(
-      'actividad?select=id,profile_role,trabajador_nombre,accion,detalle,created_at&order=created_at.desc&limit=100'
+      `actividad?select=id,profile_role,trabajador_nombre,accion,detalle,created_at&accion=not.like.${PREFIJO_CAJA}&order=created_at.desc&limit=${limite}`
     );
     setActividad(data);
+    setActividadHayMas(data.length >= limite);
+    setActividadVersion((v) => v + 1);
   }, [isCotizador]);
+  const cargarMasActividad = useCallback(async () => {
+    actividadLimiteRef.current += 100;
+    await loadActividad();
+  }, [loadActividad]);
+  const loadLicitaciones = useCallback(async () => {
+    try {
+      const data = await api.get(`licitaciones?${SELECT_LISTA_LICITACIONES}&order=updated_at.desc`);
+      setLicitaciones(data);
+    } catch (ex) {
+      // Si la tabla todavía no existe (falta correr licitaciones.sql) no se
+      // rompe el resto de la app; solo se avisa al entrar a la pestaña.
+      toast('No se pudieron cargar las licitaciones: ' + ex.message, 'error');
+    } finally {
+      setLicLoading(false);
+    }
+  }, [toast]);
 
   // Arranque. El tablero se pinta al instante desde la caché del navegador y
   // después se comprueba la firma: si nadie cambió nada desde la última vez
@@ -403,6 +436,18 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
     }, 30000);
     return () => clearInterval(interval);
   }, [tab, isCotizador, loadActividad]);
+
+  // Licitaciones: se piden al entrar a la pestaña y se refrescan solas
+  // mientras se mira la lista (no mientras se edita una: ahí el detalle tiene
+  // su propio chequeo liviano).
+  useEffect(() => {
+    if (tab !== 'licitaciones' || licId) return;
+    loadLicitaciones();
+    const interval = setInterval(() => {
+      if (!document.hidden) loadLicitaciones();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [tab, licId, loadLicitaciones]);
 
   // Igual que actividad: mientras se está viendo la pestaña de apartados,
   // se refresca sola para reflejar cambios de la otra sesión sin F5.
@@ -556,19 +601,20 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
       <div className="sidebar">
         <div className="brand">Cotizaciones</div>
         <div className="brand-sub">y encargos</div>
-        <NavItem active={tab === 'tablero'} onClick={() => setTab('tablero')} icon="⌂" label="Tablero" />
+        <NavItem active={tab === 'tablero'} onClick={() => setTab('tablero')} icon="tablero" label="Tablero" />
+        <NavItem active={tab === 'licitaciones'} onClick={() => setTab('licitaciones')} icon="licitaciones" label="Licitaciones" />
         {isCotizador && (
-          <NavItem active={tab === 'proveedores'} onClick={() => setTab('proveedores')} icon="▣" label="Proveedores" />
+          <NavItem active={tab === 'proveedores'} onClick={() => setTab('proveedores')} icon="proveedores" label="Proveedores" />
         )}
-        <NavItem active={tab === 'equipo'} onClick={() => setTab('equipo')} icon="♟" label="Equipo" />
+        <NavItem active={tab === 'equipo'} onClick={() => setTab('equipo')} icon="equipo" label="Equipo" />
         {isCotizador && (
-          <NavItem active={tab === 'faltantes'} onClick={() => setTab('faltantes')} icon="!" label="Faltantes" />
-        )}
-        {isCotizador && (
-          <NavItem active={tab === 'apartados'} onClick={() => setTab('apartados')} icon="▢" label="Apartados" />
+          <NavItem active={tab === 'faltantes'} onClick={() => setTab('faltantes')} icon="faltantes" label="Faltantes" />
         )}
         {isCotizador && (
-          <NavItem active={tab === 'actividad'} onClick={() => setTab('actividad')} icon="↗" label="Actividad" />
+          <NavItem active={tab === 'apartados'} onClick={() => setTab('apartados')} icon="apartados" label="Apartados" />
+        )}
+        {isCotizador && (
+          <NavItem active={tab === 'actividad'} onClick={() => setTab('actividad')} icon="actividad" label="Actividad" />
         )}
         <div className="sidebar-footer">
           <div className="who">{activeWorker ? activeWorker.nombre : profile.nombre}</div>
@@ -618,6 +664,45 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
                 {botonNuevo}
               </div>
               {loading ? <div className="loading">Cargando…</div> : <Board cotizaciones={cotizaciones} onOpen={setOpenId} canDrag={true} onMoveEstado={moverEstado} />}
+            </motion.div>
+          )}
+          {tab === 'licitaciones' && (
+            <motion.div key={licId ? `licitacion-${licId}` : 'licitaciones'} {...tabFade}>
+              {licId ? (
+                <LicitacionDetail
+                  id={licId}
+                  activeWorker={activeWorker}
+                  proveedores={proveedores}
+                  onBack={() => setLicId(null)}
+                  onChanged={loadLicitaciones}
+                  log={log}
+                />
+              ) : (
+                <>
+                  <div className="main-header">
+                    <div>
+                      <h2>Licitaciones</h2>
+                      <p>Sube el Excel y llena producto, proveedor y precio de cada renglón.</p>
+                    </div>
+                    {botonNuevo}
+                  </div>
+                  <LicitacionesScreen
+                    profile={profile}
+                    activeWorker={activeWorker}
+                    licitaciones={licitaciones}
+                    loading={licLoading}
+                    onOpen={setLicId}
+                    showForm={showNuevo}
+                    onCloseForm={() => setShowNuevo(false)}
+                    onCreated={async (lic, renglones) => {
+                      setShowNuevo(false);
+                      await log('Subió licitación', `L-${lic.folio} · ${lic.titulo} (${renglones} renglones)`);
+                      await loadLicitaciones();
+                      setLicId(lic.id);
+                    }}
+                  />
+                </>
+              )}
             </motion.div>
           )}
           {tab === 'proveedores' && isCotizador && (
@@ -694,9 +779,11 @@ export default function AppShell({ profile, activeWorker, onChangeWorker, onLogo
                 {botonNuevo}
               </div>
               <ActividadScreen
-                profile={profile}
                 activeWorker={activeWorker}
                 actividad={actividad}
+                version={actividadVersion}
+                hayMas={actividadHayMas}
+                cargarMas={cargarMasActividad}
                 reload={loadActividad}
                 log={log}
                 showForm={showNuevo}

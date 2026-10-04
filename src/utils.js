@@ -55,3 +55,27 @@ export const fmtDateTime = (iso) => {
 
 export const itemsTotal = (items) =>
   (items || []).reduce((sum, it) => sum + Number(it.precio_final || 0) * Number(it.cantidad || 1), 0);
+
+// Licitaciones (Cyber y Ocampo). No es un flujo lineal estricto: se elige el
+// estado a mano desde el detalle.
+export const ESTADOS_LICITACION = [
+  { key: 'abierta', label: 'Abierta', color: '#64748B' },
+  { key: 'cotizando', label: 'Cotizando', color: '#B45309' },
+  { key: 'enviada', label: 'Oferta enviada', color: '#004AAD' },
+  { key: 'adjudicada', label: 'Adjudicada', color: '#15803D' },
+  { key: 'no_adjudicada', label: 'No adjudicada', color: '#B91C1C' },
+];
+
+export const estadoLicitacionInfo = (k) => ESTADOS_LICITACION.find((e) => e.key === k) || ESTADOS_LICITACION[0];
+
+// Días que faltan para una fecha (YYYY-MM-DD), contando desde hoy a medianoche.
+export const diasHasta = (fecha) => {
+  if (!fecha) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const f = new Date(`${fecha}T00:00:00`);
+  return Math.round((f - hoy) / 86400000);
+};
+
+export const fmtFecha = (fecha) =>
+  fecha ? new Date(`${fecha}T00:00:00`).toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';

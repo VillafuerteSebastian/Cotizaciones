@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { fmtMoney, fmtDateTime } from '../utils.js';
+import { api } from '../supabaseClient.js';
 import Pager, { usePager } from './Pager.jsx';
 import FormModal from './FormModal.jsx';
 import { AnimatePresence } from './Motion.jsx';
@@ -14,6 +15,12 @@ const CATEGORIAS = [
     titulo: '📦 Productos',
     corto: 'Productos',
     match: (a) => ['Agregó producto', 'Agregó producto cotizado', 'Editó producto', 'Eliminó producto'].includes(a),
+  },
+  {
+    key: 'licitaciones',
+    titulo: '📑 Licitaciones',
+    corto: 'Licitaciones',
+    match: (a) => ['Subió licitación', 'Cambió estado de licitación', 'Eliminó licitación'].includes(a),
   },
   {
     key: 'faltantes',
@@ -114,8 +121,15 @@ function Feed({ items, vacio, pageSize, montoVisible, resetKey }) {
   );
 }
 
+// Los movimientos de caja se piden por mes directamente a la base. Antes se
+// sacaban de los últimos 100 registros de TODO tipo, así que en cuanto había
+// actividad normal (productos, faltantes…) los meses anteriores quedaban
+// incompletos o vacíos.
+export const PREFIJO_CAJA = encodeURIComponent('💰*');
+const SELECT_ACTIVIDAD = 'select=id,profile_role,trabajador_nombre,accion,detalle,created_at';
+
 /** Calendario de caja + detalle del día, uno al lado del otro. */
-function CajaPanel({ items }) {
+function CajaPanel({ version }) {
   const [mes, setMes] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -123,6 +137,30 @@ function CajaPanel({ items }) {
     return d;
   });
   const [diaSel, setDiaSel] = useState(null);
+  const [items, setItems] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
+
+  useEffect(() => {
+    let vigente = true;
+    const ini = new Date(mes.getFullYear(), mes.getMonth(), 1).toISOString();
+    const fin = new Date(mes.getFullYear(), mes.getMonth() + 1, 1).toISOString();
+    api
+      .get(
+        `actividad?${SELECT_ACTIVIDAD}&accion=like.${PREFIJO_CAJA}` +
+          `&created_at=gte.${encodeURIComponent(ini)}&created_at=lt.${encodeURIComponent(fin)}&order=created_at.desc`
+      )
+      .then((data) => {
+        if (!vigente) return;
+        setItems(data);
+        setErrorCarga('');
+      })
+      .catch((ex) => vigente && setErrorCarga(ex.message))
+      .finally(() => vigente && setCargando(false));
+    return () => {
+      vigente = false;
+    };
+  }, [mes, version]);
 
   const porDia = useMemo(() => {
     const map = {};
@@ -155,6 +193,7 @@ function CajaPanel({ items }) {
 
   const cambiarMes = (delta) => {
     setDiaSel(null);
+    setCargando(true);
     setMes((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
   };
 
@@ -162,7 +201,10 @@ function CajaPanel({ items }) {
     const d = new Date();
     d.setDate(1);
     d.setHours(0, 0, 0, 0);
-    setMes(d);
+    if (d.getTime() !== mes.getTime()) {
+      setCargando(true);
+      setMes(d);
+    }
     setDiaSel(hoyKey);
   };
 
@@ -202,7 +244,7 @@ function CajaPanel({ items }) {
           </p>
         </div>
         <div className="panel-head-side">
-          <span className="panel-total">{fmtMoney(totalMes)}</span>
+          <span className="panel-total num">{cargando ? '…' : fmtMoney(totalMes)}</span>
           <div className="mini-cal-nav">
             <button type="button" onClick={() => cambiarMes(-1)} title="Mes anterior" aria-label="Mes anterior">
               ←
@@ -270,9 +312,10 @@ function CajaPanel({ items }) {
             </div>
             <span className="caja-feed-total">{fmtMoney(totalMostrado)}</span>
           </div>
+          {errorCarga && <div className="err">No se pudieron cargar los movimientos: {errorCarga}</div>}
           <Feed
             items={itemsMostrados}
-            vacio="Sin movimientos en este periodo."
+            vacio={cargando ? 'Cargando movimientos…' : 'Sin movimientos en este periodo.'}
             pageSize={POR_PAGINA_CAJA}
             montoVisible
             resetKey={`${prefixMes}|${diaSel || ''}`}
@@ -283,7 +326,8 @@ function CajaPanel({ items }) {
   );
 }
 
-export default function ActividadScreen({ profile, activeWorker, actividad, reload, log, showForm, onCloseForm }) {
+export default function ActividadScreen({ activeWorker, actividad, version, hayMas, cargarMas, reload, log, showForm, onCloseForm }) {
+  const [cargandoMas, setCargandoMas] = useState(false);
   const [tipo, setTipo] = useState(TIPOS_MOVIMIENTO[0]);
   const [monto, setMonto] = useState('');
   const [nota, setNota] = useState('');
@@ -328,7 +372,7 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
 
   return (
     <div className="actividad-screen">
-      <CajaPanel items={grupos.caja || []} />
+      <CajaPanel version={version} />
 
       <section className="registros-panel">
         <header className="panel-head">
@@ -364,6 +408,23 @@ export default function ActividadScreen({ profile, activeWorker, actividad, relo
           pageSize={POR_PAGINA_REGISTROS}
           resetKey={filtro}
         />
+        {hayMas && (
+          <div className="cargar-mas">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={cargandoMas}
+              onClick={async () => {
+                setCargandoMas(true);
+                await cargarMas();
+                setCargandoMas(false);
+              }}
+            >
+              {cargandoMas ? 'Cargando…' : 'Cargar registros más antiguos'}
+            </button>
+            <span className="hint">Mostrando los últimos {registros.length} registros.</span>
+          </div>
+        )}
       </section>
 
       <AnimatePresence>
