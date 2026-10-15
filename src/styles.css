@@ -6547,6 +6547,75 @@ p {
   box-shadow: inset 0 -2px 0 var(--primary);
 }
 
+/* Columna en blanco del Excel que la app va a llenar. */
+.import-preview th.app {
+  color: var(--success);
+  background: var(--success-soft);
+  box-shadow: inset 0 -2px 0 var(--success);
+}
+
+.import-mapeo {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--success-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.import-mapeo .import-config {
+  padding: 0;
+  margin: 10px 0 0;
+  background: transparent;
+  border: 0;
+}
+
+.import-mapeo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.import-mapeo-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 2px 14px;
+  padding: 0;
+  margin: 8px 0 0;
+  list-style: none;
+}
+
+.import-mapeo-lista li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line-light);
+}
+
+.import-mapeo-lista b {
+  overflow: hidden;
+  color: var(--success);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-mapeo-lista em {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.import-mapeo .hint {
+  margin: 10px 0 0;
+}
+
 .import-preview + .hint {
   margin: 0 0 14px;
 }
@@ -6832,7 +6901,7 @@ p {
 
 .lic-grid {
   width: 100%;
-  min-width: 980px;
+  min-width: 1060px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
@@ -6861,6 +6930,12 @@ p {
 
 .lic-grid th.col-add.col-producto {
   box-shadow: inset 2px 0 0 var(--blue-200);
+}
+
+/* Dato que no tiene columna en el Excel: se queda en la app. */
+.lic-grid th.col-add.col-solo-app {
+  color: var(--ink-muted);
+  background: var(--surface-soft);
 }
 
 .lic-grid td {
@@ -6913,6 +6988,7 @@ p {
 .lic-grid .col-orig { min-width: 90px; }
 .lic-grid .col-orig.col-desc { min-width: 220px; width: 24%; }
 .lic-grid .col-producto { min-width: 190px; width: 18%; }
+.lic-grid .col-marca { min-width: 120px; }
 .lic-grid .col-proveedor { min-width: 150px; }
 .lic-grid .col-precio { width: 120px; }
 .lic-grid .col-notas { min-width: 150px; }

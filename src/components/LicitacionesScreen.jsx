@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { api } from '../supabaseClient.js';
 import { ESTADOS_LICITACION, FLUJO_LICITACION, NO_ADJUDICADA, estadoLicitacionInfo, fmtMoney, fmtFecha, fmtDateTime, diasHasta } from '../utils.js';
-import { leerExcel, detectarEncabezado, construirTabla, detectarColumnas, aNumero } from '../excel.js';
+import { leerExcel, detectarEncabezado, construirTabla, detectarColumnas, repartirRegistro, CAMPOS_APP } from '../excel.js';
 import FormModal from './FormModal.jsx';
 import Icon from './Icons.jsx';
 import { StatusStepper } from './StatusStepper.jsx';
@@ -100,6 +100,7 @@ function ImportarLicitacion({ activeWorker, profile, onClose, onCreated }) {
   const [hojaIdx, setHojaIdx] = useState(0);
   const [filaEnc, setFilaEnc] = useState(0);
   const [mapa, setMapa] = useState({ descripcion: '', cantidad: '', unidad: '' });
+  const [verColumnas, setVerColumnas] = useState(false);
   const [titulo, setTitulo] = useState('');
   const [institucion, setInstitucion] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -114,6 +115,15 @@ function ImportarLicitacion({ activeWorker, profile, onClose, onCreated }) {
     if (!hoja) return null;
     return construirTabla(hoja.filas, filaEnc);
   }, [hojas, hojaIdx, filaEnc]);
+
+  // Columnas del Excel que quedan a cargo de la app (precio, marca, proveedor…).
+  const columnasApp = useMemo(() => new Set(CAMPOS_APP.map((c) => mapa[c.clave]).filter(Boolean)), [mapa]);
+
+  // El total solo tiene sentido si el Excel pide cantidades o trae su columna.
+  const camposApp = useMemo(
+    () => CAMPOS_APP.filter((c) => c.clave !== 'total' || mapa.cantidad || mapa.total),
+    [mapa.cantidad, mapa.total]
+  );
 
   const elegirHoja = (idx, lista = hojas) => {
     const hoja = lista[idx];
@@ -161,17 +171,17 @@ function ImportarLicitacion({ activeWorker, profile, onClose, onCreated }) {
         col_descripcion: mapa.descripcion || null,
         col_cantidad: mapa.cantidad || null,
         col_unidad: mapa.unidad || null,
+        // Columnas en blanco del Excel que la app va a llenar.
+        ...Object.fromEntries(CAMPOS_APP.map((c) => [`col_${c.clave}`, mapa[c.clave] || null])),
         archivo_nombre: archivo ? archivo.name : null,
+        hoja_nombre: hojas[hojaIdx]?.nombre || null,
         creado_por: profile.id,
         creado_por_nombre: activeWorker ? activeWorker.nombre : null,
       });
-      const filas = tabla.registros.map((datos, i) => ({
-        licitacion_id: lic.id,
-        orden: i + 1,
-        datos,
-        descripcion: mapa.descripcion ? String(datos[mapa.descripcion] ?? '') || null : null,
-        cantidad: mapa.cantidad ? aNumero(datos[mapa.cantidad]) : null,
-      }));
+      const filas = tabla.registros.map((registro, i) => {
+        const { datos, item } = repartirRegistro(registro, mapa);
+        return { licitacion_id: lic.id, orden: i + 1, datos, ...item };
+      });
       for (let i = 0; i < filas.length; i += LOTE) {
         setProgreso(`Guardando renglones ${Math.min(i + LOTE, filas.length)} de ${filas.length}…`);
         await api.postMudo('licitacion_items', filas.slice(i, i + LOTE));
@@ -190,7 +200,7 @@ function ImportarLicitacion({ activeWorker, profile, onClose, onCreated }) {
   return (
     <FormModal
       title="Subir licitación"
-      subtitle="Sube el Excel tal como llegó. Las columnas originales se conservan; en la app se agregan producto ofrecido, proveedor y precio."
+      subtitle="Sube el Excel tal como llegó. Se conserva igual: lo que se cotice en la app se escribe en las columnas que el archivo trae en blanco (precio, marca, proveedor)."
       onClose={busy ? () => {} : onClose}
       maxWidth={tabla ? 860 : 520}
     >
@@ -307,6 +317,51 @@ function ImportarLicitacion({ activeWorker, profile, onClose, onCreated }) {
               ))}
             </div>
 
+            <div className="import-mapeo">
+              <div className="import-mapeo-head">
+                <strong>Lo que la app va a llenar</strong>
+                <button type="button" className="link-btn" onClick={() => setVerColumnas((v) => !v)}>
+                  {verColumnas ? 'Listo' : 'Ajustar'}
+                </button>
+              </div>
+              {verColumnas ? (
+                <div className="import-config">
+                  {camposApp.map((campo) => (
+                    <div className="field" key={campo.clave}>
+                      <label>{campo.etiqueta}</label>
+                      <select
+                        value={mapa[campo.clave] || ''}
+                        onChange={(e) => setMapa((m) => ({ ...m, [campo.clave]: e.target.value }))}
+                      >
+                        <option value="">— Solo en la app —</option>
+                        {opcionesColumna.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <ul className="import-mapeo-lista">
+                    {camposApp.map((campo) => (
+                      <li key={campo.clave}>
+                        <span>{campo.etiqueta}</span>
+                        {mapa[campo.clave] ? <b>{mapa[campo.clave]}</b> : <em>solo en la app</em>}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="hint">
+                    El Excel se descarga con las mismas columnas que llegó: lo cotizado solo rellena los espacios que
+                    venían en blanco. Lo que diga «solo en la app» no va en el archivo; si debe ir, usa «Ajustar» y
+                    elige su columna.
+                  </p>
+                </>
+              )}
+            </div>
+
             <div className="section-label" style={{ marginBottom: 8 }}>
               Vista previa · {tabla.registros.length} renglones
             </div>
@@ -315,7 +370,7 @@ function ImportarLicitacion({ activeWorker, profile, onClose, onCreated }) {
                 <thead>
                   <tr>
                     {tabla.columnas.map((c) => (
-                      <th key={c} className={Object.values(mapa).includes(c) ? 'mapped' : ''}>
+                      <th key={c} className={columnasApp.has(c) ? 'app' : Object.values(mapa).includes(c) ? 'mapped' : ''}>
                         {c}
                       </th>
                     ))}

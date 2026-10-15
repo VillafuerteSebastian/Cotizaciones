@@ -32,7 +32,18 @@ create table if not exists public.licitaciones (
   col_descripcion text,
   col_cantidad text,
   col_unidad text,
+  -- Qué encabezado del Excel llena la app. Si el archivo ya trae "Precio",
+  -- "Marca" o "Proveedor" en blanco, lo cotizado se escribe AHÍ y no en
+  -- columnas nuevas pegadas al final.
+  col_producto text,
+  col_marca text,
+  col_proveedor text,
+  col_precio text,
+  col_total text,
+  col_notas text,
   archivo_nombre text,
+  -- Nombre de la hoja original, para devolver el Excel igual que llegó.
+  hoja_nombre text,
   notas text,
   creado_por uuid references public.profiles(id),
   creado_por_nombre text,
@@ -50,10 +61,13 @@ create table if not exists public.licitacion_items (
   descripcion text,
   cantidad numeric,
   producto_ofrecido text,
+  marca text,
   proveedor_id uuid references public.proveedores(id) on delete set null,
   proveedor_nombre text,
   precio_unitario numeric,
   notas text,
+  -- Renglón agregado a mano en la app: los que vienen del Excel no se quitan.
+  agregado boolean not null default false,
   editado_por_nombre text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -61,6 +75,16 @@ create table if not exists public.licitacion_items (
 
 alter table public.licitacion_items add column if not exists descripcion text;
 alter table public.licitacion_items add column if not exists cantidad numeric;
+alter table public.licitacion_items add column if not exists marca text;
+alter table public.licitacion_items add column if not exists agregado boolean not null default false;
+
+alter table public.licitaciones add column if not exists col_producto text;
+alter table public.licitaciones add column if not exists col_marca text;
+alter table public.licitaciones add column if not exists col_proveedor text;
+alter table public.licitaciones add column if not exists col_precio text;
+alter table public.licitaciones add column if not exists col_total text;
+alter table public.licitaciones add column if not exists col_notas text;
+alter table public.licitaciones add column if not exists hoja_nombre text;
 
 create index if not exists idx_licitacion_items_licitacion
   on public.licitacion_items (licitacion_id, orden);

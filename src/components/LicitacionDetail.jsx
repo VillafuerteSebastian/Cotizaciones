@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../supabaseClient.js';
 import { FLUJO_LICITACION, NO_ADJUDICADA, estadoLicitacionInfo, fmtMoney, fmtFecha } from '../utils.js';
-import { aNumero, exportarLicitacion, sugerir } from '../excel.js';
+import { aNumero, exportarLicitacion, sugerir, mapaDeLicitacion, totalDe } from '../excel.js';
 import { PlazoChip } from './LicitacionesScreen.jsx';
 import Pager, { usePager } from './Pager.jsx';
 import FormModal from './FormModal.jsx';
@@ -21,7 +21,7 @@ async function cargarHistorial() {
   const [lic, cot] = await Promise.all([
     api
       .get(
-        'licitacion_items?select=licitacion_id,descripcion,producto_ofrecido,proveedor_nombre,precio_unitario,updated_at' +
+        'licitacion_items?select=licitacion_id,descripcion,producto_ofrecido,marca,proveedor_nombre,precio_unitario,updated_at' +
           '&precio_unitario=not.is.null&order=updated_at.desc&limit=2000'
       )
       .catch(() => []),
@@ -37,6 +37,7 @@ async function cargarHistorial() {
       licitacion_id: h.licitacion_id,
       texto: `${h.descripcion || ''} ${h.producto_ofrecido || ''}`,
       producto: h.producto_ofrecido || h.descripcion || '',
+      marca: h.marca || '',
       proveedor: h.proveedor_nombre || '',
       precio: Number(h.precio_unitario),
       fecha: h.updated_at,
@@ -309,6 +310,13 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }, [proveedores, items, historial]);
 
+  const nombresMarcas = useMemo(() => {
+    const set = new Set();
+    for (const it of items) if (it.marca) set.add(it.marca);
+    for (const h of historial) if (h.marca) set.add(h.marca);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [items, historial]);
+
   const historialOtras = useMemo(() => historial.filter((h) => h.licitacion_id !== id), [historial, id]);
 
   const guardar = async (item, cambios) => {
@@ -357,6 +365,7 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
     const match = s.proveedor ? proveedores.find((p) => p.nombre.toLowerCase() === s.proveedor.toLowerCase()) : null;
     guardar(item, {
       producto_ofrecido: s.producto || null,
+      ...(s.marca ? { marca: s.marca } : null),
       proveedor_nombre: s.proveedor || null,
       proveedor_id: match ? match.id : null,
       precio_unitario: Number.isFinite(s.precio) ? s.precio : null,
@@ -380,7 +389,9 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
   const agregarRenglon = async () => {
     try {
       const orden = items.reduce((m, it) => Math.max(m, it.orden || 0), 0) + 1;
-      const [nuevo] = await api.post('licitacion_items', { licitacion_id: id, orden, datos: {} });
+      // `agregado` marca los renglones que no venían en el Excel: son los
+      // únicos que se pueden quitar después.
+      const [nuevo] = await api.post('licitacion_items', { licitacion_id: id, orden, datos: {}, agregado: true });
       setItems((prev) => [...prev, nuevo]);
       setQ('');
       setSoloPendientes(false);
@@ -390,10 +401,13 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
     }
   };
 
+  // Los renglones del Excel no se borran: la oferta tiene que ir con todas las
+  // líneas que pidió la institución. Solo se puede quitar lo que se agregó aquí.
   const eliminarRenglon = async (item) => {
-    const ok = await confirmar(`¿Eliminar el renglón ${item.orden}?`, {
-      detail: item.descripcion || undefined,
-      confirmLabel: 'Eliminar',
+    if (!item.agregado) return;
+    const ok = await confirmar(`¿Quitar el renglón ${item.orden}?`, {
+      detail: item.descripcion || 'Se agregó en la app, no venía en el Excel.',
+      confirmLabel: 'Quitar',
     });
     if (!ok) return;
     try {
@@ -432,20 +446,27 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
     }
   };
 
+  // Las columnas que llena la app (precio, marca, proveedor…) ya tienen su
+  // propia celda en la tabla; no se repiten como columna del Excel.
+  const mapaLic = useMemo(() => mapaDeLicitacion(lic), [lic]);
+  const columnasApp = useMemo(() => new Set(Object.values(mapaLic).filter(Boolean)), [mapaLic]);
+
+  const columnasReferencia = useMemo(() => (lic?.columnas || []).filter((c) => !columnasApp.has(c)), [lic, columnasApp]);
+
   const columnasVisibles = useMemo(() => {
     if (!lic) return [];
-    const todas = lic.columnas || [];
+    const todas = columnasReferencia;
     if (verTodas || todas.length <= 4) return todas;
     const clave = [lic.col_descripcion, lic.col_cantidad, lic.col_unidad].filter((c) => c && todas.includes(c));
     return clave.length ? todas.filter((c) => clave.includes(c)) : todas.slice(0, 3);
-  }, [lic, verTodas]);
+  }, [lic, columnasReferencia, verTodas]);
 
   const filtrados = useMemo(() => {
     const t = q.trim().toLowerCase();
     return items.filter((it) => {
       if (soloPendientes && it.precio_unitario !== null && it.precio_unitario !== undefined) return false;
       if (!t) return true;
-      const hay = [it.descripcion, it.producto_ofrecido, it.proveedor_nombre, it.notas, String(it.orden), ...Object.values(it.datos || {})]
+      const hay = [it.descripcion, it.producto_ofrecido, it.marca, it.proveedor_nombre, it.notas, String(it.orden), ...Object.values(it.datos || {})]
         .map((v) => String(v ?? '').toLowerCase())
         .join(' ');
       return hay.includes(t);
@@ -472,7 +493,7 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
 
   const resumen = useMemo(() => {
     const cotizados = items.filter((it) => it.precio_unitario !== null && it.precio_unitario !== undefined);
-    const total = cotizados.reduce((s, it) => s + Number(it.precio_unitario) * Number(it.cantidad ?? 1), 0);
+    const total = cotizados.reduce((s, it) => s + (totalDe(lic, it) ?? 0), 0);
     const provs = new Set(cotizados.map((it) => it.proveedor_nombre).filter(Boolean));
     return {
       cotizados: cotizados.length,
@@ -480,7 +501,7 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
       proveedores: provs.size,
       pct: items.length ? Math.round((cotizados.length / items.length) * 100) : 0,
     };
-  }, [items]);
+  }, [items, lic]);
 
   if (error) {
     return (
@@ -507,7 +528,26 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
 
   const cambiarEstado = (key) =>
     actualizarCabecera({ estado: key }, ['Cambió estado de licitación', `L-${lic.folio} → ${estadoLicitacionInfo(key).label}`]);
-  const totalCols = 1 + columnasVisibles.length + 6;
+  // Sin columna de cantidad (lo normal en estas licitaciones) el total de un
+  // renglón sería el precio repetido, así que esa columna no se muestra.
+  const hayCantidad = Boolean(lic.col_cantidad);
+  const puedeQuitar = items.some((it) => it.agregado);
+  // Si la columna la trae el Excel, se usa su propio nombre: así se ve dónde
+  // va a quedar lo que se escribe.
+  // Si la columna la trae el Excel se usa su propio nombre; si no, se avisa
+  // que ese dato se queda en la app (el Excel sale con sus columnas de siempre).
+  const ThApp = ({ clave, porDefecto, clase }) => {
+    const col = mapaLic[clave] || null;
+    return (
+      <th
+        className={`col-add ${clase}${col ? '' : ' col-solo-app'}`}
+        title={col ? `Va en la columna «${col}» del Excel` : 'No va en el Excel: queda solo en la app'}
+      >
+        {col || porDefecto}
+      </th>
+    );
+  };
+  const totalCols = 1 + columnasVisibles.length + 5 + (hayCantidad ? 1 : 0) + (puedeQuitar ? 1 : 0);
 
   return (
     <div className="lic-detail">
@@ -554,7 +594,7 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
           </div>
         </div>
         <div className="lic-stat">
-          <span className="lic-stat-label">Total de la oferta</span>
+          <span className="lic-stat-label">{hayCantidad ? 'Total de la oferta' : 'Suma de precios'}</span>
           <span className="lic-stat-value num">{fmtMoney(resumen.total)}</span>
         </div>
         <div className="lic-stat">
@@ -579,10 +619,10 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
             <input type="checkbox" checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} />
             Solo sin precio
           </label>
-          {(lic.columnas || []).length > 4 && (
+          {columnasReferencia.length > 4 && (
             <label className="toggle">
               <input type="checkbox" checked={verTodas} onChange={(e) => setVerTodas(e.target.checked)} />
-              Todas las columnas del Excel ({lic.columnas.length})
+              Todas las columnas del Excel ({columnasReferencia.length})
             </label>
           )}
         </div>
@@ -590,6 +630,12 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
 
       <datalist id={`lic-prov-${id}`}>
         {nombresProveedores.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
+
+      <datalist id={`lic-marca-${id}`}>
+        {nombresMarcas.map((n) => (
           <option key={n} value={n} />
         ))}
       </datalist>
@@ -604,12 +650,13 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
                   {c}
                 </th>
               ))}
-              <th className="col-add col-producto">Producto ofrecido</th>
-              <th className="col-add col-proveedor">Proveedor</th>
-              <th className="col-add col-precio">Precio unit.</th>
-              <th className="col-add col-total">Total</th>
-              <th className="col-add col-notas">Notas</th>
-              <th className="col-x" aria-label="Acciones" />
+              <ThApp clave="producto" porDefecto="Producto ofrecido" clase="col-producto" />
+              <ThApp clave="marca" porDefecto="Marca" clase="col-marca" />
+              <ThApp clave="proveedor" porDefecto="Proveedor" clase="col-proveedor" />
+              <ThApp clave="precio" porDefecto="Precio unit." clase="col-precio" />
+              {hayCantidad && <ThApp clave="total" porDefecto="Total" clase="col-total" />}
+              <ThApp clave="notas" porDefecto="Notas" clase="col-notas" />
+              {puedeQuitar && <th className="col-x" aria-label="Acciones" />}
             </tr>
           </thead>
           <tbody>
@@ -622,7 +669,7 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
             )}
             {pageItems.map((it) => {
               const tienePrecio = it.precio_unitario !== null && it.precio_unitario !== undefined;
-              const total = tienePrecio ? Number(it.precio_unitario) * Number(it.cantidad ?? 1) : null;
+              const total = totalDe(lic, it);
               const sugs = sugerenciasPagina[it.id] || [];
               const estado = guardando[it.id];
               return (
@@ -652,6 +699,15 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
                     />
                     <Sugerencias lista={sugs} onUsar={(s) => usarSugerencia(it, s)} />
                   </td>
+                  <td className="col-add col-marca">
+                    <Celda
+                      value={it.marca}
+                      placeholder="Marca"
+                      list={`lic-marca-${id}`}
+                      ariaLabel={`Marca, renglón ${it.orden}`}
+                      onSave={(v) => guardar(it, { marca: v })}
+                    />
+                  </td>
                   <td className="col-add col-proveedor">
                     <Celda
                       value={it.proveedor_nombre}
@@ -670,7 +726,7 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
                       onSave={(v) => guardar(it, { precio_unitario: v })}
                     />
                   </td>
-                  <td className="col-add col-total num">{total === null ? '—' : fmtMoney(total)}</td>
+                  {hayCantidad && <td className="col-add col-total num">{total === null ? '—' : fmtMoney(total)}</td>}
                   <td className="col-add col-notas">
                     <Celda
                       value={it.notas}
@@ -679,11 +735,21 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
                       onSave={(v) => guardar(it, { notas: v })}
                     />
                   </td>
-                  <td className="col-x">
-                    <button type="button" className="icon-btn" onClick={() => eliminarRenglon(it)} title="Eliminar renglón" aria-label={`Eliminar renglón ${it.orden}`}>
-                      <Icon name="basura" size={15} />
-                    </button>
-                  </td>
+                  {puedeQuitar && (
+                    <td className="col-x">
+                      {it.agregado && (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          onClick={() => eliminarRenglon(it)}
+                          title="Quitar este renglón (se agregó en la app)"
+                          aria-label={`Quitar renglón ${it.orden}`}
+                        >
+                          <Icon name="basura" size={15} />
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}
