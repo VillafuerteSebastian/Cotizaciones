@@ -1,7 +1,17 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { api } from '../supabaseClient.js';
+import { api, storage } from '../supabaseClient.js';
 import { ESTADOS_LICITACION, FLUJO_LICITACION, NO_ADJUDICADA, estadoLicitacionInfo, fmtMoney, fmtFecha, fmtDateTime, diasHasta } from '../utils.js';
-import { leerExcel, detectarEncabezado, construirTabla, detectarColumnas, repartirRegistro, CAMPOS_APP } from '../excel.js';
+import {
+  leerExcel,
+  detectarEncabezado,
+  construirTabla,
+  detectarColumnas,
+  repartirRegistro,
+  letraColumna,
+  esXlsx,
+  BUCKET_LICITACIONES,
+  CAMPOS_APP,
+} from '../excel.js';
 import FormModal from './FormModal.jsx';
 import Icon from './Icons.jsx';
 import { StatusStepper } from './StatusStepper.jsx';
@@ -161,6 +171,7 @@ function ImportarLicitacion({ activeWorker, profile, onClose, onCreated }) {
     e.preventDefault();
     if (!tabla || !tabla.registros.length || !titulo.trim()) return;
     setBusy(true);
+    const hoja = hojas[hojaIdx];
     try {
       const [lic] = await api.post('licitaciones', {
         titulo: titulo.trim(),
@@ -174,17 +185,39 @@ function ImportarLicitacion({ activeWorker, profile, onClose, onCreated }) {
         // Columnas en blanco del Excel que la app va a llenar.
         ...Object.fromEntries(CAMPOS_APP.map((c) => [`col_${c.clave}`, mapa[c.clave] || null])),
         archivo_nombre: archivo ? archivo.name : null,
-        hoja_nombre: hojas[hojaIdx]?.nombre || null,
+        hoja_nombre: hoja?.nombre || null,
+        // Columna real del Excel (letra) de cada encabezado: ahí se escribe lo
+        // cotizado al devolver el archivo original.
+        columnas_excel: Object.fromEntries(
+          tabla.columnas.map((c) => [c, letraColumna((hoja?.colInicio || 0) + tabla.posicion[c])])
+        ),
         creado_por: profile.id,
         creado_por_nombre: activeWorker ? activeWorker.nombre : null,
       });
       const filas = tabla.registros.map((registro, i) => {
         const { datos, item } = repartirRegistro(registro, mapa);
-        return { licitacion_id: lic.id, orden: i + 1, datos, ...item };
+        // Fila real del Excel donde está este renglón.
+        const fila_excel = hoja?.numFila?.[tabla.origen[i]] ?? null;
+        return { licitacion_id: lic.id, orden: i + 1, datos, ...item, fila_excel };
       });
       for (let i = 0; i < filas.length; i += LOTE) {
         setProgreso(`Guardando renglones ${Math.min(i + LOTE, filas.length)} de ${filas.length}…`);
         await api.postMudo('licitacion_items', filas.slice(i, i + LOTE));
+      }
+
+      // El archivo original se guarda tal cual para devolverlo con su diseño.
+      // Si falla, la licitación igual queda creada; la descarga sale en
+      // formato simple.
+      if (archivo && esXlsx(archivo.name)) {
+        setProgreso('Guardando el Excel original…');
+        try {
+          const ruta = `${lic.id}/original.${archivo.name.split('.').pop().toLowerCase()}`;
+          await storage.subir(BUCKET_LICITACIONES, ruta, archivo);
+          const [act] = await api.patch(`licitaciones?id=eq.${lic.id}`, { archivo_path: ruta });
+          if (act) Object.assign(lic, act);
+        } catch (ex) {
+          toast('La licitación se creó, pero no se pudo guardar el Excel original: ' + ex.message, 'error');
+        }
       }
       await onCreated(lic, filas.length);
     } catch (ex) {

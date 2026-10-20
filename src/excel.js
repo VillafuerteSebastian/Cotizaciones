@@ -8,7 +8,14 @@
 // AHÍ lo cotizado, en vez de agregar columnas nuevas al lado. Así el archivo
 // que se descarga es el mismo que mandó la institución, pero lleno.
 
+import { storage } from './supabaseClient.js';
+
 const cargarXLSX = () => import('xlsx');
+// fflate (~8 KB) abre y vuelve a cerrar el .xlsx, que por dentro es un .zip.
+const cargarZip = () => import('fflate');
+
+/** Bucket privado de Supabase Storage con los Excel originales. */
+export const BUCKET_LICITACIONES = 'licitaciones';
 
 const quitarAcentos = (s) =>
   String(s ?? '')
@@ -24,23 +31,45 @@ const vacio = (v) => v === null || v === undefined || String(v).trim() === '';
 // que la tabla, la búsqueda y las sugerencias no se rompan.
 const limpiarCelda = (v) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : v);
 
-/** Lee todas las hojas de un archivo como matrices de celdas (texto/número). */
+/**
+ * Lee todas las hojas de un archivo como matrices de celdas (texto/número).
+ * Además de las filas, guarda DÓNDE está cada una en el Excel real:
+ * `numFila[i]` es el número de fila (1, 2, 3…) de `filas[i]`, y `colInicio`
+ * es la columna (0 = A) donde arranca cada fila. Con eso, al descargar, lo
+ * cotizado se escribe en la celda exacta del archivo original.
+ */
 export async function leerExcel(file) {
   const XLSX = await cargarXLSX();
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
   return wb.SheetNames.map((nombre) => {
-    const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombre], {
-      header: 1,
-      raw: true,
-      defval: '',
-      blankrows: false,
+    const ws = wb.Sheets[nombre];
+    const rango = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0, c: 0 } };
+    // Con las filas en blanco incluidas, el índice + la fila inicial del rango
+    // da el número real de fila. Las vacías se quitan después.
+    const todas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: true });
+    const filas = [];
+    const numFila = [];
+    todas.forEach((f, i) => {
+      const limpia = f.map((c) => (c instanceof Date ? c.toLocaleDateString('es-CR') : limpiarCelda(c)));
+      if (limpia.every(vacio)) return;
+      filas.push(limpia);
+      numFila.push(rango.s.r + i + 1);
     });
-    return {
-      nombre,
-      filas: filas.map((f) => f.map((c) => (c instanceof Date ? c.toLocaleDateString('es-CR') : limpiarCelda(c)))),
-    };
+    return { nombre, filas, numFila, colInicio: rango.s.c };
   });
+}
+
+/** 0 → "A", 25 → "Z", 26 → "AA"… */
+export function letraColumna(indice) {
+  let n = indice + 1;
+  let s = '';
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
 }
 
 // Palabras que delatan una fila de encabezados.
@@ -81,6 +110,11 @@ export function detectarEncabezado(filas) {
   return mejor;
 }
 
+// Celda que es solo una etiqueta de totales: "SUB-TOTAL:", "I.V.A:", "TOTAL:".
+const esCeldaDeTotales = (c) =>
+  typeof c === 'string' &&
+  /^(sub\s*-?\s*total|total(\s+general)?|i\.?\s*v\.?\s*a\.?|impuestos?)\s*:?$/.test(quitarAcentos(c));
+
 /** Arma columnas únicas y registros {columna: valor} a partir de la fila de encabezado. */
 export function construirTabla(filas, filaEncabezado) {
   const enc = filas[filaEncabezado] || [];
@@ -97,21 +131,33 @@ export function construirTabla(filas, filaEncabezado) {
   }
 
   const registros = [];
-  for (const fila of filas.slice(filaEncabezado + 1)) {
+  // Índice (dentro de `filas`) de donde salió cada registro.
+  const origen = [];
+  for (let f = filaEncabezado + 1; f < filas.length; f++) {
+    const fila = filas[f];
     if (fila.every(vacio)) continue;
+    // El pie de la tabla (SUB-TOTAL, I.V.A, TOTAL, firmas, porcentajes…) no son
+    // renglones: desde la primera fila de totales en adelante se descarta todo.
+    if (registros.length && fila.some(esCeldaDeTotales)) break;
     const r = {};
     columnas.forEach((col, i) => {
       if (!vacio(fila[i])) r[col] = fila[i];
     });
     registros.push(r);
+    origen.push(f);
   }
 
   // Columnas sin encabezado y sin datos (los bordes del Excel) se descartan.
   // Las que tienen encabezado se quedan aunque vengan vacías: son justamente
   // las que hay que llenar.
   const conDatos = columnas.filter((c, i) => !vacio(enc[i]) || registros.some((r) => !vacio(r[c])));
-  return { columnas: conDatos, registros };
+  // Posición de cada columna dentro de la fila (0 = primera columna leída).
+  const posicion = Object.fromEntries(conDatos.map((c) => [c, columnas.indexOf(c)]));
+  return { columnas: conDatos, registros, origen, posicion };
 }
+
+/** Formatos que se pueden devolver con su diseño intacto (son un .zip con XML). */
+export const esXlsx = (nombre) => /\.(xlsx|xlsm)$/i.test(nombre || '');
 
 // ---------------------------------------------------------------------------
 // Qué llena la app
@@ -223,7 +269,13 @@ export const totalDe = (lic, item) => {
  */
 export function repartirRegistro(registro, mapa) {
   const datos = { ...registro };
+  // Todos los renglones salen con EXACTAMENTE las mismas llaves (null si no hay
+  // valor). PostgREST rechaza un insert en lote si una fila trae una llave que
+  // otra no trae (PGRST102 "All object keys must match").
   const item = {};
+  for (const campo of CAMPOS_APP) {
+    if (campo.item) item[campo.item] = null;
+  }
   for (const campo of CAMPOS_APP) {
     const col = mapa[campo.clave];
     if (!col) continue;
@@ -238,11 +290,106 @@ export function repartirRegistro(registro, mapa) {
 }
 
 /**
- * Descarga la licitación como Excel: exactamente las columnas que mandó la
- * institución, con lo cotizado escrito en los espacios que venían en blanco.
- * No se agrega ninguna columna; lo que no tiene columna se queda en la app.
+ * Descarga la licitación como Excel.
+ *
+ * Si se guardó el archivo original (.xlsx), se devuelve ESE MISMO archivo con
+ * su diseño intacto (membrete, logo, bordes, celdas combinadas, totales,
+ * firma, área de impresión…) y solo se escriben las celdas de lo cotizado.
+ *
+ * Si no hay original (licitaciones viejas, o un .xls/.csv/.ods), se arma una
+ * hoja simple con las columnas de la institución, como antes.
+ *
+ * Devuelve { fuera }: cuántos renglones agregados en la app no tienen fila en
+ * el Excel original (no se pueden meter sin descuadrar el diseño).
  */
 export async function exportarLicitacion(lic, items) {
+  const conPosicion = items.some((it) => it.fila_excel);
+  if (lic.archivo_path && lic.columnas_excel && conPosicion) {
+    return exportarSobreOriginal(lic, items);
+  }
+  await exportarTablaSimple(lic, items);
+  return { fuera: 0 };
+}
+
+const nombreDescarga = (lic) => {
+  const base = `${lic.folio ? `L${lic.folio} ` : ''}${lic.titulo || 'licitacion'}`;
+  return base.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80);
+};
+
+function descargarBytes(bytes, nombre, tipo) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: tipo }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/** Valor que la app escribe en la celda de un campo para un renglón. */
+function valorCampo(lic, campo, it) {
+  if (campo.calculado) return totalDe(lic, it);
+  const v = it[campo.item];
+  if (v === null || v === undefined || v === '') return null;
+  return campo.numerico ? Number(v) : String(v);
+}
+
+async function exportarSobreOriginal(lic, items) {
+  const { unzipSync, zipSync, strFromU8, strToU8 } = await cargarZip();
+  const archivo = unzipSync(new Uint8Array(await storage.bajar(BUCKET_LICITACIONES, lic.archivo_path)));
+  const xml = (ruta) => new DOMParser().parseFromString(strFromU8(archivo[ruta]), 'application/xml');
+  const guardar = (ruta, doc) => {
+    // Algunos navegadores conservan la declaración <?xml?> al serializar y
+    // otros no: se quita y se pone una sola.
+    const txt = new XMLSerializer().serializeToString(doc).replace(/^\s*<\?xml[^>]*\?>\s*/, '');
+    archivo[ruta] = strToU8(XML_DECL + txt);
+  };
+
+  const libro = xml('xl/workbook.xml');
+  const rutaHoja = rutaDeHoja(libro, xml('xl/_rels/workbook.xml.rels'), lic.hoja_nombre);
+  if (!rutaHoja || !archivo[rutaHoja]) throw new Error('No se encontró la hoja original dentro del Excel.');
+  const hoja = xml(rutaHoja);
+  const hojaXml = new HojaXml(hoja);
+
+  const mapa = mapaDeLicitacion(lic);
+  const letras = lic.columnas_excel || {};
+  const campos = CAMPOS_APP.map((campo) => ({ campo, letra: letras[mapa[campo.clave]] })).filter((x) => x.letra);
+
+  let fuera = 0;
+  for (const it of items) {
+    if (!it.fila_excel) {
+      fuera++;
+      continue;
+    }
+    for (const { campo, letra } of campos) {
+      const celda = hojaXml.celda(`${letra}${it.fila_excel}`);
+      // El total del Excel suele ser una fórmula (=D10*G10): se respeta y
+      // Excel la recalcula. Solo si es un valor fijo se escribe el total.
+      if (campo.calculado && hojaXml.tieneFormula(celda)) continue;
+      hojaXml.escribir(celda, valorCampo(lic, campo, it));
+    }
+  }
+
+  // Las fórmulas guardan su último resultado; se borra para que Excel (y
+  // LibreOffice) las recalculen con los precios nuevos al abrir.
+  hojaXml.olvidarResultados();
+  guardar(rutaHoja, hoja);
+
+  // Pedirle a Excel que recalcule todo al abrir, y quitar la cadena de cálculo
+  // vieja (si una celda dejó de ser fórmula, Excel la daría por "dañada").
+  marcarRecalculo(libro);
+  guardar('xl/workbook.xml', libro);
+  quitarCalcChain(archivo, xml, guardar);
+
+  const bytes = zipSync(archivo, { level: 6 });
+  const nombre = lic.archivo_nombre && esXlsx(lic.archivo_nombre) ? lic.archivo_nombre : `${nombreDescarga(lic)}.xlsx`;
+  descargarBytes(bytes, nombre, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  return { fuera };
+}
+
+/** Exporta una hoja simple con las columnas de la institución (sin diseño). */
+async function exportarTablaSimple(lic, items) {
   const XLSX = await cargarXLSX();
   const originales = lic.columnas || [];
   const mapa = mapaDeLicitacion(lic);
@@ -295,8 +442,145 @@ export async function exportarLicitacion(lic, items) {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, (lic.hoja_nombre || 'Licitación').slice(0, 31));
-  const seguro = `${lic.folio ? `L${lic.folio} ` : ''}${lic.titulo || 'licitacion'}`.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80);
-  XLSX.writeFile(wb, `${seguro}.xlsx`);
+  XLSX.writeFile(wb, `${nombreDescarga(lic)}.xlsx`);
+}
+
+// ---------------------------------------------------------------------------
+// Edición del .xlsx original a nivel de XML
+//
+// Se toca únicamente <c> (celdas) de la hoja de la licitación. Estilos,
+// combinadas, imágenes, formas, área de impresión, otras hojas… no se leen ni
+// se reescriben, así que salen idénticos.
+
+const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+const NS_REL_DOC = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const NS_XML = 'http://www.w3.org/XML/1998/namespace';
+
+const hijos = (el, nombre) => Array.from(el.childNodes).filter((n) => n.nodeType === 1 && n.localName === nombre);
+
+/** "AB12" → { col: 27, fila: 12 } (col 1 = A). */
+function partirRef(ref) {
+  const m = /^([A-Z]+)(\d+)$/.exec(ref);
+  const col = m[1].split('').reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0);
+  return { col, fila: Number(m[2]) };
+}
+
+/** Ruta interna (xl/worksheets/sheetN.xml) de la hoja con ese nombre; si no, la primera. */
+function rutaDeHoja(libro, rels, nombreHoja) {
+  const hojas = Array.from(libro.getElementsByTagNameNS('*', 'sheet'));
+  const hoja = hojas.find((h) => h.getAttribute('name') === nombreHoja) || hojas[0];
+  if (!hoja) return null;
+  const rid = hoja.getAttributeNS(NS_REL_DOC, 'id') || hoja.getAttribute('r:id');
+  const rel = Array.from(rels.getElementsByTagNameNS('*', 'Relationship')).find((r) => r.getAttribute('Id') === rid);
+  if (!rel) return null;
+  const destino = rel.getAttribute('Target');
+  return destino.startsWith('/') ? destino.slice(1) : `xl/${destino}`;
+}
+
+class HojaXml {
+  constructor(doc) {
+    this.doc = doc;
+    this.ns = doc.documentElement.namespaceURI;
+    this.datos = doc.getElementsByTagNameNS(this.ns, 'sheetData')[0];
+    // Estilo por defecto de cada columna (<col min max style>), para celdas nuevas.
+    this.estiloCol = [];
+    for (const c of Array.from(doc.getElementsByTagNameNS(this.ns, 'col'))) {
+      const s = c.getAttribute('style');
+      if (!s) continue;
+      for (let i = Number(c.getAttribute('min')); i <= Number(c.getAttribute('max')); i++) this.estiloCol[i] = s;
+    }
+  }
+
+  nuevo(nombre) {
+    return this.doc.createElementNS(this.ns, nombre);
+  }
+
+  fila(num) {
+    const filas = hijos(this.datos, 'row');
+    let f = filas.find((r) => Number(r.getAttribute('r')) === num);
+    if (f) return f;
+    f = this.nuevo('row');
+    f.setAttribute('r', String(num));
+    this.datos.insertBefore(f, filas.find((r) => Number(r.getAttribute('r')) > num) || null);
+    return f;
+  }
+
+  /** Devuelve la celda <c r="G10">, creándola en su lugar si no existe. */
+  celda(ref) {
+    const { col, fila } = partirRef(ref);
+    const f = this.fila(fila);
+    const celdas = hijos(f, 'c');
+    let c = celdas.find((x) => x.getAttribute('r') === ref);
+    if (c) return c;
+    c = this.nuevo('c');
+    c.setAttribute('r', ref);
+    const estilo = f.getAttribute('customFormat') === '1' ? f.getAttribute('s') : this.estiloCol[col];
+    if (estilo) c.setAttribute('s', estilo);
+    f.insertBefore(c, celdas.find((x) => partirRef(x.getAttribute('r')).col > col) || null);
+    return c;
+  }
+
+  tieneFormula(c) {
+    return hijos(c, 'f').length > 0;
+  }
+
+  /** Escribe un número o texto conservando el estilo (s) de la celda; null la vacía. */
+  escribir(c, valor) {
+    for (const n of [...hijos(c, 'f'), ...hijos(c, 'v'), ...hijos(c, 'is')]) c.removeChild(n);
+    c.removeAttribute('t');
+    if (valor === null || valor === undefined || valor === '') return;
+    if (typeof valor === 'number') {
+      if (!Number.isFinite(valor)) return;
+      const v = this.nuevo('v');
+      v.textContent = String(valor);
+      c.appendChild(v);
+      return;
+    }
+    // Texto en línea: no hace falta tocar sharedStrings.xml.
+    c.setAttribute('t', 'inlineStr');
+    const is = this.nuevo('is');
+    const t = this.nuevo('t');
+    t.setAttributeNS(NS_XML, 'xml:space', 'preserve');
+    t.textContent = String(valor);
+    is.appendChild(t);
+    c.appendChild(is);
+  }
+
+  /** Borra el resultado guardado de cada fórmula para que se recalcule al abrir. */
+  olvidarResultados() {
+    for (const c of Array.from(this.datos.getElementsByTagNameNS(this.ns, 'c'))) {
+      if (!this.tieneFormula(c)) continue;
+      for (const v of hijos(c, 'v')) c.removeChild(v);
+      c.removeAttribute('t');
+    }
+  }
+}
+
+function marcarRecalculo(libro) {
+  const ns = libro.documentElement.namespaceURI;
+  let calc = libro.getElementsByTagNameNS(ns, 'calcPr')[0];
+  if (!calc) {
+    calc = libro.createElementNS(ns, 'calcPr');
+    // Va justo después de <definedNames> (o de <sheets> si no hay nombres).
+    const ancla = libro.getElementsByTagNameNS(ns, 'definedNames')[0] || libro.getElementsByTagNameNS(ns, 'sheets')[0];
+    libro.documentElement.insertBefore(calc, ancla ? ancla.nextSibling : null);
+  }
+  calc.setAttribute('fullCalcOnLoad', '1');
+}
+
+function quitarCalcChain(archivo, xml, guardar) {
+  if (!archivo['xl/calcChain.xml']) return;
+  delete archivo['xl/calcChain.xml'];
+  const rels = xml('xl/_rels/workbook.xml.rels');
+  for (const r of Array.from(rels.getElementsByTagNameNS('*', 'Relationship'))) {
+    if (/calcChain/i.test(r.getAttribute('Target') || '')) r.parentNode.removeChild(r);
+  }
+  guardar('xl/_rels/workbook.xml.rels', rels);
+  const tipos = xml('[Content_Types].xml');
+  for (const o of Array.from(tipos.getElementsByTagNameNS('*', 'Override'))) {
+    if (/calcChain/i.test(o.getAttribute('PartName') || '')) o.parentNode.removeChild(o);
+  }
+  guardar('[Content_Types].xml', tipos);
 }
 
 // ---------------------------------------------------------------------------
