@@ -7262,3 +7262,16 @@ textarea.celda {
   }
 }
 
+
+/* Móvil: todos los popups van encima del menú inferior (z-index 1000), como
+   "Nueva cotización". Si no, el menú tapa el final de la ventana y no se
+   puede llegar a lo de abajo. */
+@media (max-width: 700px) {
+  .modal-overlay {
+    z-index: 1300;
+  }
+
+  .modal {
+    overscroll-behavior: contain;
+  }
+}
