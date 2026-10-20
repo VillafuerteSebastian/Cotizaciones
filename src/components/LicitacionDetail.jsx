@@ -438,7 +438,8 @@ export default function LicitacionDetail({ id, activeWorker, proveedores, onBack
   const exportar = async () => {
     setExportando(true);
     try {
-      await exportarLicitacion(lic, items);
+      const { fuera } = await exportarLicitacion(lic, items);
+      if (fuera) toast(`${fuera} renglón(es) agregados en la app no están en el Excel original y no se incluyeron.`, 'error');
     } catch (ex) {
       toast('No se pudo generar el Excel: ' + ex.message, 'error');
     } finally {

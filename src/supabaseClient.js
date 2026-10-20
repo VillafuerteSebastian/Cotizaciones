@@ -174,6 +174,46 @@ export const api = {
   del: (path) => rest(path, { method: 'DELETE' }),
 };
 
+// ---------------------------------------------------------------------------
+// Storage: archivos privados (por ahora, el Excel original de cada licitación).
+// Mismo esquema que el REST: token del usuario y un reintento si expiró.
+// Storage a veces responde 400 (no 401) con "jwt expired", por eso se revisa
+// también el texto.
+
+async function storageRes(path, options = {}, retry = true) {
+  const res = await fetch(`${S.url}/storage/v1/object/${path}`, {
+    ...options,
+    headers: {
+      apikey: S.anonKey,
+      Authorization: `Bearer ${S.accessToken}`,
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    if (retry && (res.status === 401 || /jwt|expired|token/i.test(txt))) {
+      await doRefresh();
+      return storageRes(path, options, false);
+    }
+    throw new Error(txt || `Error ${res.status}`);
+  }
+  return res;
+}
+
+const rutaStorage = (bucket, ruta) => `${bucket}/${ruta.split('/').map(encodeURIComponent).join('/')}`;
+
+export const storage = {
+  /** Sube (o reemplaza) un archivo. */
+  subir: (bucket, ruta, archivo, tipo) =>
+    storageRes(rutaStorage(bucket, ruta), {
+      method: 'POST',
+      headers: { 'Content-Type': tipo || archivo.type || 'application/octet-stream', 'x-upsert': 'true' },
+      body: archivo,
+    }),
+  /** Descarga un archivo privado como ArrayBuffer. */
+  bajar: async (bucket, ruta) => (await storageRes(rutaStorage(bucket, ruta))).arrayBuffer(),
+};
+
 // "Quién eres" — la persona real detrás del login compartido.
 // Se guarda en este navegador, separado por rol.
 export function getActiveWorker(role) {
